@@ -71,41 +71,93 @@ const orderSchema = new mongoose.Schema({
 
 const Order = mongoose.model('Order', orderSchema);
 
-// ============================================
-//  📦 API ROUTES
-// ============================================
-
-// ✅ GET: جلب جميع الطلبات
-app.get('/api/orders', async (req, res) => {
+// ✅ POST: إنشاء طلب جديد (معدل نهائياً)
+app.post('/api/orders', async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (error) {
-    console.error('❌ Error fetching orders:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to fetch orders', 
-      error: error.message 
-    });
-  }
-});
+    console.log('📦 Received order data:', req.body); // ✅ للتحقق
 
-// ✅ GET: جلب طلب محدد
-app.get('/api/orders/:id', async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ 
+    const body = req.body;
+
+    // ✅ دعم جميع الهياكل الممكنة
+    const customerName = body.customer?.fullName || body.fullName || body.name;
+    const customerPhone = body.customer?.phone || body.phone;
+    const customerEmail = body.customer?.email || body.email || '';
+
+    // ✅ التحقق من وجود الاسم والهاتف
+    if (!customerName || !customerPhone) {
+      console.log('❌ Missing customer data:', { customerName, customerPhone });
+      return res.status(400).json({
         success: false,
-        message: 'Order not found' 
+        message: 'Please provide customer name and phone'
       });
     }
-    res.json(order);
+
+    // ✅ التحقق من وجود المنتجات
+    if (!body.items || body.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order must have at least one item'
+      });
+    }
+
+    // ✅ إنشاء الطلب
+    const order = new Order({
+      customer: {
+        fullName: customerName,
+        phone: customerPhone,
+        email: customerEmail
+      },
+      shippingAddress: {
+        city: body.shippingAddress?.city || body.city || '',
+        street: body.shippingAddress?.street || body.address || '',
+        state: body.shippingAddress?.state || 'Casablanca-Settat',
+        zipCode: body.shippingAddress?.zipCode || '20000',
+        country: body.shippingAddress?.country || 'Morocco'
+      },
+      items: body.items.map(item => ({
+        productId: item.productId || item.id || Date.now().toString(),
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity || 1,
+        size: item.size || 'M',
+        image: item.image || '/Assets/ShoeStore/tshirt1.png',
+        category: item.category || 'T-Shirts',
+        brand: item.brand || 'National Team'
+      })),
+      totals: {
+        subtotal: body.totals?.subtotal || body.subtotal || 0,
+        discount: body.totals?.discount || body.discount || 0,
+        totalAmount: body.totals?.totalAmount || body.totalAmount || 0
+      },
+      payment: {
+        method: body.payment?.method || body.paymentMethod || 'cash_on_delivery',
+        status: 'pending'
+      },
+      status: 'pending',
+      notes: body.notes || ''
+    });
+
+    // ✅ حفظ في MongoDB
+    await order.save();
+
+    console.log('📦 New Order saved:', {
+      id: order._id,
+      customer: order.customer.fullName,
+      total: order.totals.totalAmount,
+      items: order.items.length
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      order: order
+    });
+
   } catch (error) {
-    console.error('❌ Error fetching order:', error);
+    console.error('❌ Error creating order:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Failed to fetch order', 
+      message: 'Failed to create order', 
       error: error.message 
     });
   }
