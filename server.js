@@ -6,66 +6,51 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ✅ Middleware
 app.use(cors());
 app.use(express.json());
 
-// ✅ ✅ ✅ رابط الاتصال بـ MongoDB Atlas (نهائي)
-// استخدم هذا الرابط بالضبط
+// ✅ رابط MongoDB
 const MONGODB_URI = 'mongodb+srv://abdllaah:abhaniabhani@cluster0.66kxfeo.mongodb.net/shop?retryWrites=true&w=majority';
 
-// ✅ الاتصال بـ MongoDB مع إعدادات مهلة أطول
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 30000, // 30 ثانية
-  socketTimeoutMS: 45000
-})
-.then(() => console.log('✅ Connected to MongoDB Atlas'))
-.catch(err => console.error('❌ MongoDB Connection Error:', err));
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ Connected to MongoDB Atlas'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ============================================
-//  📦 ORDER SCHEMA (نموذج الطلب)
+//  📦 ORDER SCHEMA (نموذج الطلب المحسن)
 // ============================================
 
 const orderSchema = new mongoose.Schema({
-  items: [{
-    name: String,
-    price: Number,
-    quantity: Number,
-    size: String,
-    image: String,
-    category: String,
-    brand: String
-  }],
-  totalAmount: {
-    type: Number,
-    required: true
-  },
-  subtotal: {
-    type: Number,
-    required: true
-  },
-  discount: {
-    type: Number,
-    default: 0
-  },
-  shippingAddress: {
+  // ✅ معلومات الزبون (Customer Info)
+  customer: {
     fullName: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
     phone: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true
+    }
+  },
+
+  // ✅ عنوان الشحن (Shipping Address)
+  shippingAddress: {
     city: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
     street: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
     state: {
       type: String,
@@ -80,25 +65,111 @@ const orderSchema = new mongoose.Schema({
       default: 'Morocco'
     }
   },
-  paymentMethod: {
-    type: String,
-    enum: ['cash_on_delivery', 'credit_card', 'paypal'],
-    default: 'cash_on_delivery'
+
+  // ✅ المنتجات (Items)
+  items: [{
+    productId: {
+      type: String,
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+    size: {
+      type: String,
+      default: 'M'
+    },
+    image: {
+      type: String,
+      default: '/Assets/ShoeStore/tshirt1.png'
+    },
+    category: {
+      type: String,
+      default: 'T-Shirts'
+    },
+    brand: {
+      type: String,
+      default: 'National Team'
+    }
+  }],
+
+  // ✅ المبالغ (Amounts)
+  totals: {
+    subtotal: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    discount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    totalAmount: {
+      type: Number,
+      required: true,
+      min: 0
+    }
   },
+
+  // ✅ طريقة الدفع (Payment)
+  payment: {
+    method: {
+      type: String,
+      enum: ['cash_on_delivery', 'credit_card', 'paypal'],
+      default: 'cash_on_delivery'
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'paid', 'failed'],
+      default: 'pending'
+    }
+  },
+
+  // ✅ حالة الطلب (Order Status)
   status: {
     type: String,
     enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'pending'
   },
-  paymentStatus: {
+
+  // ✅ ملاحظات (Notes)
+  notes: {
     type: String,
-    enum: ['pending', 'paid', 'failed'],
-    default: 'pending'
+    default: ''
   },
+
+  // ✅ تاريخ الإنشاء (Created At)
   createdAt: {
     type: Date,
     default: Date.now
   }
+}, {
+  // ✅ إضافة خيارات إضافية
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// ✅ ✅ ✅ إضافة علاقة (Virtual) لحساب عدد المنتجات
+orderSchema.virtual('totalItems').get(function() {
+  return this.items.reduce((sum, item) => sum + item.quantity, 0);
+});
+
+// ✅ ✅ ✅ إضافة علاقة (Virtual) لعرض المنتجات كـ String
+orderSchema.virtual('itemsSummary').get(function() {
+  return this.items.map(item => `${item.name} x${item.quantity}`).join(', ');
 });
 
 const Order = mongoose.model('Order', orderSchema);
@@ -107,7 +178,7 @@ const Order = mongoose.model('Order', orderSchema);
 //  📦 API ROUTES
 // ============================================
 
-// ✅ GET: جلب جميع الطلبات
+// ✅ GET: جلب جميع الطلبات (مع البيانات المحسنة)
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
@@ -146,7 +217,7 @@ app.get('/api/orders/:id', async (req, res) => {
 // ✅ POST: إنشاء طلب جديد
 app.post('/api/orders', async (req, res) => {
   try {
-    const { items, totalAmount, subtotal, discount, shippingAddress, paymentMethod } = req.body;
+    const { customer, shippingAddress, items, totals, payment, notes } = req.body;
 
     // ✅ التحقق من وجود العناصر
     if (!items || items.length === 0) {
@@ -156,32 +227,57 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
-    // ✅ التحقق من معلومات الشحن
-    if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.phone || !shippingAddress.city || !shippingAddress.street) {
+    // ✅ التحقق من معلومات الزبون
+    if (!customer || !customer.fullName || !customer.phone) {
       return res.status(400).json({
         success: false,
-        message: 'Please fill in all shipping information'
+        message: 'Please provide customer name and phone'
+      });
+    }
+
+    // ✅ التحقق من عنوان الشحن
+    if (!shippingAddress || !shippingAddress.city || !shippingAddress.street) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide shipping address (city and street)'
       });
     }
 
     // ✅ إنشاء الطلب
     const order = new Order({
-      items: items,
-      totalAmount: totalAmount || 0,
-      subtotal: subtotal || totalAmount || 0,
-      discount: discount || 0,
+      customer: {
+        fullName: customer.fullName,
+        phone: customer.phone,
+        email: customer.email || ''
+      },
       shippingAddress: {
-        fullName: shippingAddress.fullName,
-        phone: shippingAddress.phone,
         city: shippingAddress.city,
         street: shippingAddress.street,
         state: shippingAddress.state || 'Casablanca-Settat',
         zipCode: shippingAddress.zipCode || '20000',
         country: shippingAddress.country || 'Morocco'
       },
-      paymentMethod: paymentMethod || 'cash_on_delivery',
+      items: items.map(item => ({
+        productId: item.productId || item.id || Date.now().toString(),
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity || 1,
+        size: item.size || 'M',
+        image: item.image || '/Assets/ShoeStore/tshirt1.png',
+        category: item.category || 'T-Shirts',
+        brand: item.brand || 'National Team'
+      })),
+      totals: {
+        subtotal: totals?.subtotal || 0,
+        discount: totals?.discount || 0,
+        totalAmount: totals?.totalAmount || 0
+      },
+      payment: {
+        method: payment?.method || 'cash_on_delivery',
+        status: 'pending'
+      },
       status: 'pending',
-      paymentStatus: 'pending'
+      notes: notes || ''
     });
 
     // ✅ حفظ في MongoDB
@@ -189,16 +285,15 @@ app.post('/api/orders', async (req, res) => {
 
     console.log('📦 New Order saved to MongoDB:', {
       id: order._id,
-      customer: order.shippingAddress.fullName,
-      total: order.totalAmount,
+      customer: order.customer.fullName,
+      total: order.totals.totalAmount,
       items: order.items.length
     });
 
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
-      order: order,
-      totalAmount: order.totalAmount
+      order: order
     });
 
   } catch (error) {
