@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// ✅ رابط MongoDB
+// ✅ رابط MongoDB Atlas
 const MONGODB_URI = 'mongodb+srv://abdllaah:abhaniabhani@cluster0.66kxfeo.mongodb.net/shop?retryWrites=true&w=majority';
 
 mongoose.connect(MONGODB_URI)
@@ -17,159 +17,56 @@ mongoose.connect(MONGODB_URI)
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ============================================
-//  📦 ORDER SCHEMA (نموذج الطلب المحسن)
+//  📦 ORDER SCHEMA
 // ============================================
 
 const orderSchema = new mongoose.Schema({
-  // ✅ معلومات الزبون (Customer Info)
   customer: {
-    fullName: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    phone: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true
-    }
+    fullName: { type: String, required: true },
+    phone: { type: String, required: true },
+    email: { type: String, default: '' }
   },
-
-  // ✅ عنوان الشحن (Shipping Address)
   shippingAddress: {
-    city: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    street: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    state: {
-      type: String,
-      default: 'Casablanca-Settat'
-    },
-    zipCode: {
-      type: String,
-      default: '20000'
-    },
-    country: {
-      type: String,
-      default: 'Morocco'
-    }
+    city: { type: String, required: true },
+    street: { type: String, required: true },
+    state: { type: String, default: 'Casablanca-Settat' },
+    zipCode: { type: String, default: '20000' },
+    country: { type: String, default: 'Morocco' }
   },
-
-  // ✅ المنتجات (Items)
   items: [{
-    productId: {
-      type: String,
-      required: true
-    },
-    name: {
-      type: String,
-      required: true
-    },
-    price: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    quantity: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-    size: {
-      type: String,
-      default: 'M'
-    },
-    image: {
-      type: String,
-      default: '/Assets/ShoeStore/tshirt1.png'
-    },
-    category: {
-      type: String,
-      default: 'T-Shirts'
-    },
-    brand: {
-      type: String,
-      default: 'National Team'
-    }
+    productId: { type: String, required: true },
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    size: { type: String, default: 'M' },
+    image: { type: String, default: '/Assets/ShoeStore/tshirt1.png' },
+    category: { type: String, default: 'T-Shirts' },
+    brand: { type: String, default: 'National Team' }
   }],
-
-  // ✅ المبالغ (Amounts)
   totals: {
-    subtotal: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    discount: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    totalAmount: {
-      type: Number,
-      required: true,
-      min: 0
-    }
+    subtotal: { type: Number, required: true, default: 0 },
+    discount: { type: Number, default: 0 },
+    totalAmount: { type: Number, required: true, default: 0 }
   },
-
-  // ✅ طريقة الدفع (Payment)
   payment: {
-    method: {
-      type: String,
-      enum: ['cash_on_delivery', 'credit_card', 'paypal'],
-      default: 'cash_on_delivery'
+    method: { 
+      type: String, 
+      enum: ['cash_on_delivery', 'credit_card', 'paypal'], 
+      default: 'cash_on_delivery' 
     },
-    status: {
-      type: String,
-      enum: ['pending', 'paid', 'failed'],
-      default: 'pending'
+    status: { 
+      type: String, 
+      enum: ['pending', 'paid', 'failed'], 
+      default: 'pending' 
     }
   },
-
-  // ✅ حالة الطلب (Order Status)
   status: {
     type: String,
     enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'pending'
   },
-
-  // ✅ ملاحظات (Notes)
-  notes: {
-    type: String,
-    default: ''
-  },
-
-  // ✅ تاريخ الإنشاء (Created At)
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-}, {
-  // ✅ إضافة خيارات إضافية
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
-
-// ✅ ✅ ✅ إضافة علاقة (Virtual) لحساب عدد المنتجات
-orderSchema.virtual('totalItems').get(function() {
-  return this.items.reduce((sum, item) => sum + item.quantity, 0);
-});
-
-// ✅ ✅ ✅ إضافة علاقة (Virtual) لعرض المنتجات كـ String
-orderSchema.virtual('itemsSummary').get(function() {
-  return this.items.map(item => `${item.name} x${item.quantity}`).join(', ');
+  notes: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
 });
 
 const Order = mongoose.model('Order', orderSchema);
@@ -178,7 +75,7 @@ const Order = mongoose.model('Order', orderSchema);
 //  📦 API ROUTES
 // ============================================
 
-// ✅ GET: جلب جميع الطلبات (مع البيانات المحسنة)
+// ✅ GET: جلب جميع الطلبات
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
@@ -217,47 +114,44 @@ app.get('/api/orders/:id', async (req, res) => {
 // ✅ POST: إنشاء طلب جديد
 app.post('/api/orders', async (req, res) => {
   try {
-    const { customer, shippingAddress, items, totals, payment, notes } = req.body;
+    const body = req.body;
 
-    // ✅ التحقق من وجود العناصر
-    if (!items || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Order must have at least one item'
-      });
-    }
+    // ✅ دعم كلا الهيكلين (الجديد والقديم)
+    const customerName = body.customer?.fullName || body.fullName;
+    const customerPhone = body.customer?.phone || body.phone;
+    const customerEmail = body.customer?.email || '';
 
-    // ✅ التحقق من معلومات الزبون
-    if (!customer || !customer.fullName || !customer.phone) {
+    // ✅ التحقق من وجود الاسم والهاتف
+    if (!customerName || !customerPhone) {
       return res.status(400).json({
         success: false,
         message: 'Please provide customer name and phone'
       });
     }
 
-    // ✅ التحقق من عنوان الشحن
-    if (!shippingAddress || !shippingAddress.city || !shippingAddress.street) {
+    // ✅ التحقق من وجود المنتجات
+    if (!body.items || body.items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide shipping address (city and street)'
+        message: 'Order must have at least one item'
       });
     }
 
     // ✅ إنشاء الطلب
     const order = new Order({
       customer: {
-        fullName: customer.fullName,
-        phone: customer.phone,
-        email: customer.email || ''
+        fullName: customerName,
+        phone: customerPhone,
+        email: customerEmail
       },
       shippingAddress: {
-        city: shippingAddress.city,
-        street: shippingAddress.street,
-        state: shippingAddress.state || 'Casablanca-Settat',
-        zipCode: shippingAddress.zipCode || '20000',
-        country: shippingAddress.country || 'Morocco'
+        city: body.shippingAddress?.city || body.city || '',
+        street: body.shippingAddress?.street || body.address || '',
+        state: body.shippingAddress?.state || 'Casablanca-Settat',
+        zipCode: body.shippingAddress?.zipCode || '20000',
+        country: body.shippingAddress?.country || 'Morocco'
       },
-      items: items.map(item => ({
+      items: body.items.map(item => ({
         productId: item.productId || item.id || Date.now().toString(),
         name: item.name,
         price: item.price,
@@ -268,22 +162,22 @@ app.post('/api/orders', async (req, res) => {
         brand: item.brand || 'National Team'
       })),
       totals: {
-        subtotal: totals?.subtotal || 0,
-        discount: totals?.discount || 0,
-        totalAmount: totals?.totalAmount || 0
+        subtotal: body.totals?.subtotal || body.subtotal || 0,
+        discount: body.totals?.discount || body.discount || 0,
+        totalAmount: body.totals?.totalAmount || body.totalAmount || 0
       },
       payment: {
-        method: payment?.method || 'cash_on_delivery',
+        method: body.payment?.method || body.paymentMethod || 'cash_on_delivery',
         status: 'pending'
       },
       status: 'pending',
-      notes: notes || ''
+      notes: body.notes || ''
     });
 
     // ✅ حفظ في MongoDB
     await order.save();
 
-    console.log('📦 New Order saved to MongoDB:', {
+    console.log('📦 New Order saved:', {
       id: order._id,
       customer: order.customer.fullName,
       total: order.totals.totalAmount,
