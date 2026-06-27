@@ -10,13 +10,19 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// ✅ ✅ ✅ رابط الاتصال بـ MongoDB Atlas (محاط بعلامات اقتباس)
-const MONGODB_URI = 'mongodb+srv://abdllaah:abhaniabhani@cluster0.66kxfeo.mongodb.net/?appName=Cluster0';
+// ✅ ✅ ✅ رابط الاتصال بـ MongoDB Atlas (نهائي)
+// استخدم هذا الرابط بالضبط
+const MONGODB_URI = 'mongodb+srv://abdllaah:abhaniabhani@cluster0.66kxfeo.mongodb.net/shop?retryWrites=true&w=majority';
 
-// ✅ الاتصال بـ MongoDB
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log('✅ Connected to MongoDB Atlas'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+// ✅ الاتصال بـ MongoDB مع إعدادات مهلة أطول
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 30000, // 30 ثانية
+  socketTimeoutMS: 45000
+})
+.then(() => console.log('✅ Connected to MongoDB Atlas'))
+.catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ============================================
 //  📦 ORDER SCHEMA (نموذج الطلب)
@@ -142,6 +148,7 @@ app.post('/api/orders', async (req, res) => {
   try {
     const { items, totalAmount, subtotal, discount, shippingAddress, paymentMethod } = req.body;
 
+    // ✅ التحقق من وجود العناصر
     if (!items || items.length === 0) {
       return res.status(400).json({
         success: false,
@@ -149,6 +156,7 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
+    // ✅ التحقق من معلومات الشحن
     if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.phone || !shippingAddress.city || !shippingAddress.street) {
       return res.status(400).json({
         success: false,
@@ -156,6 +164,7 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
+    // ✅ إنشاء الطلب
     const order = new Order({
       items: items,
       totalAmount: totalAmount || 0,
@@ -175,6 +184,7 @@ app.post('/api/orders', async (req, res) => {
       paymentStatus: 'pending'
     });
 
+    // ✅ حفظ في MongoDB
     await order.save();
 
     console.log('📦 New Order saved to MongoDB:', {
