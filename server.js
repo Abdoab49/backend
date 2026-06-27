@@ -4,22 +4,21 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 app.use(express.json());
 
-// ✅ رابط MongoDB Atlas
+// ✅ الاتصال بـ MongoDB Atlas
 const MONGODB_URI = 'mongodb+srv://abdllaah:abhaniabhani@cluster0.66kxfeo.mongodb.net/shop?retryWrites=true&w=majority';
 
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ Connected to MongoDB Atlas'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+  .catch(err => console.error('❌ MongoDB Error:', err));
 
 // ============================================
-//  📦 ORDER SCHEMA
+//  ORDER SCHEMA
 // ============================================
-
 const orderSchema = new mongoose.Schema({
   customer: {
     fullName: { type: String, required: true },
@@ -49,22 +48,10 @@ const orderSchema = new mongoose.Schema({
     totalAmount: { type: Number, required: true, default: 0 }
   },
   payment: {
-    method: { 
-      type: String, 
-      enum: ['cash_on_delivery', 'credit_card', 'paypal'], 
-      default: 'cash_on_delivery' 
-    },
-    status: { 
-      type: String, 
-      enum: ['pending', 'paid', 'failed'], 
-      default: 'pending' 
-    }
+    method: { type: String, default: 'cash_on_delivery' },
+    status: { type: String, default: 'pending' }
   },
-  status: {
-    type: String,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
-    default: 'pending'
-  },
+  status: { type: String, default: 'pending' },
   notes: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
@@ -72,7 +59,7 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 // ============================================
-//  📦 API ROUTES
+//  API ROUTES
 // ============================================
 
 // ✅ GET: جلب جميع الطلبات
@@ -81,44 +68,18 @@ app.get('/api/orders', async (req, res) => {
     const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
-    console.error('❌ Error fetching orders:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to fetch orders', 
-      error: error.message 
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// ✅ GET: جلب طلب محدد
-app.get('/api/orders/:id', async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Order not found' 
-      });
-    }
-    res.json(order);
-  } catch (error) {
-    console.error('❌ Error fetching order:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to fetch order', 
-      error: error.message 
-    });
-  }
-});
-
-// ✅ ✅ ✅ POST: إنشاء طلب جديد (نسخة مبسطة 100%)
+// ✅ POST: إنشاء طلب جديد
 app.post('/api/orders', async (req, res) => {
   try {
     console.log('📦 Received:', req.body);
 
     const { fullName, phone, city, address, items, totalAmount, promoPrice } = req.body;
 
-    // ✅ التحقق المباشر
+    // ✅ التحقق
     if (!fullName || !phone) {
       return res.status(400).json({
         success: false,
@@ -190,80 +151,6 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// ✅ PUT: تحديث حالة الطلب
-app.put('/api/orders/:id/status', async (req, res) => {
-  try {
-    const { status } = req.body;
-    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-    
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status'
-      });
-    }
-
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'Order status updated',
-      order
-    });
-
-  } catch (error) {
-    console.error('❌ Error updating order:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to update order', 
-      error: error.message 
-    });
-  }
-});
-
-// ✅ DELETE: حذف طلب
-app.delete('/api/orders/:id', async (req, res) => {
-  try {
-    const order = await Order.findByIdAndDelete(req.params.id);
-    
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'Order deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('❌ Error deleting order:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to delete order', 
-      error: error.message 
-    });
-  }
-});
-
-// ============================================
-//  🚀 START SERVER
-// ============================================
-
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 API: http://localhost:${PORT}/api/orders`);
 });
