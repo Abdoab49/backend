@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>متجري الإلكتروني</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #f5f5f5; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px 0; color: white; }
+        .product-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 3px 15px rgba(0,0,0,0.1); transition: 0.3s; margin-bottom: 25px; }
+        .product-card:hover { transform: translateY(-5px); }
+        .product-image { width: 100%; height: 220px; object-fit: cover; }
+        .product-info { padding: 20px; }
+        .product-title { font-size: 1.2rem; font-weight: bold; }
+        .product-category { display: inline-block; background: #e9ecef; padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .product-price { color: #28a745; font-size: 1.3rem; font-weight: bold; }
+        .btn-buy { background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 10px; border-radius: 25px; width: 100%; font-weight: bold; }
+        .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; padding: 20px 0; }
+        .cart-sidebar { position: fixed; left: -400px; top: 0; width: 400px; height: 100%; background: white; box-shadow: -2px 0 10px rgba(0,0,0,0.1); transition: 0.3s; z-index: 1000; padding: 20px; overflow-y: auto; }
+        .cart-sidebar.open { left: 0; }
+        .cart-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; display: none; }
+        .cart-overlay.open { display: block; }
+        .cart-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .checkout-form { margin-top: 20px; }
+        @media (max-width: 768px) { .cart-sidebar { width: 100%; left: -100%; } }
+        
+        /* مؤشر الاتصال */
+        .connection-status {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            z-index: 1000;
+        }
+        .status-online { background: #28a745; color: white; }
+        .status-offline { background: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="container">
+            <div><i class="fas fa-store me-2"></i><strong>متجري الإلكتروني</strong></div>
+            <div onclick="openCart()" style="cursor: pointer;">
+                <i class="fas fa-shopping-cart fa-lg"></i>
+                <span id="cartCount" style="background: #dc3545; border-radius: 50%; padding: 2px 6px; font-size: 12px;">0</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2 class="text-center my-4"><i class="fas fa-gift me-2"></i>منتجاتنا</h2>
+        <div id="productsGrid" class="products-grid"><div class="loading text-center p-5"><div class="spinner-border text-primary"></div></div></div>
+    </div>
+
+    <!-- سلة التسوق -->
+    <div id="cartOverlay" class="cart-overlay" onclick="closeCart()"></div>
+    <div id="cartSidebar" class="cart-sidebar">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h4><i class="fas fa-shopping-cart"></i> سلة التسوق</h4>
+            <button class="btn-close" onclick="closeCart()"></button>
+        </div>
+        <div id="cartItems"></div>
+        <div id="cartTotal" class="h5 mt-3"></div>
+        
+        <div class="checkout-form">
+            <h5>معلومات التوصيل</h5>
+            <input type="text" id="customerName" class="form-control mb-2" placeholder="الاسم الكامل">
+            <input type="text" id="customerPhone" class="form-control mb-2" placeholder="رقم الهاتف">
+            <textarea id="customerAddress" class="form-control mb-2" rows="2" placeholder="العنوان"></textarea>
+            <button class="btn btn-success w-100" onclick="submitOrder()"><i class="fas fa-check"></i> تأكيد الطلب</button>
+        </div>
+    </div>
+
+    <!-- مؤشر حالة الاتصال -->
+    <div id="connectionStatus" class="connection-status status-offline">📡 جاري الاتصال...</div>
+
+    <script>
+        // ===================== إعدادات السيرفر =====================
+        // ⚠️ IMPORTANT: غيّر هذا الرقم إلى IP جهاز الكمبيوتر الخاص بك!
+        // لمعرفة الـ IP: افتح Terminal واكتب "ipconfig" وابحث عن IPv4 Address
+        const SERVER_IP = "192.168.1.100";  // ← غيّر هذا إلى IP جهازك!
+        const SERVER_PORT = "4000";
+        
+        // اكتشاف إذا كان المستخدم على هاتف
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // تحديد رابط السيرفر المناسب
+        const SERVER_URL = isMobile ? `http://${SERVER_IP}:${SERVER_PORT}` : `http://localhost:${SERVER_PORT}`;
+        const API_URL = `${SERVER_URL}/api/admin/products`;
+        const ORDER_URL = `${SERVER_URL}/api/orders`;
+        
+        console.log("الوضع:", isMobile ? "هاتف 📱" : "كمبيوتر 💻");
+        console.log("رابط السيرفر:", SERVER_URL);
+        
+        let cart = [];
+        let products = [];
+
+        // تحديث حالة الاتصال
+        function updateConnectionStatus(connected) {
+            const statusDiv = document.getElementById("connectionStatus");
+            if (connected) {
+                statusDiv.innerHTML = "✅ متصل بالخادم";
+                statusDiv.className = "connection-status status-online";
+            } else {
+                statusDiv.innerHTML = "❌ غير متصل - تأكد من تشغيل السيرفر";
+                statusDiv.className = "connection-status status-offline";
+            }
+        }
+
+        // تحميل المنتجات
+        async function loadProducts() {
+            try {
+                const res = await fetch(API_URL);
+                const data = await res.json();
+                if (data.success && data.products.length > 0) {
+                    products = data.products;
+                    document.getElementById("productsGrid").innerHTML = products.map(p => `
+                        <div class="product-card">
+                            <img src="${p.image || 'https://placehold.co/400x300'}" class="product-image" onerror="this.src='https://placehold.co/400x300'">
+                            <div class="product-info">
+                                <div class="product-title">${p.name}</div>
+                                <span class="product-category">${p.category || 'عام'}</span>
+                                <div class="product-price">${p.price} ج.م</div>
+                                <button class="btn-buy" onclick="addToCart('${p._id}','${p.name.replace(/'/g, "\\'")}',${p.price})"><i class="fas fa-cart-plus"></i> أضف للسلة</button>
+                            </div>
+                        </div>
+                    `).join("");
+                    updateConnectionStatus(true);
+                } else {
+                    throw new Error("لا توجد منتجات");
+                }
+            } catch(e) { 
+                console.error(e);
+                updateConnectionStatus(false);
+                document.getElementById("productsGrid").innerHTML = `
+                    <div class="text-center p-5">
+                        <i class="fas fa-wifi fa-3x text-danger mb-3"></i>
+                        <h5>❌ لا يمكن الاتصال بالخادم</h5>
+                        <p>تأكد من:</p>
+                        <ul class="text-start d-inline-block">
+                            <li>تشغيل السيرفر (node index.js)</li>
+                            <li>الهاتف والكمبيوتر على نفس الواي فاي</li>
+                            <li>الـ IP صحيح: ${SERVER_IP}</li>
+                        </ul>
+                        <button class="btn btn-primary mt-3" onclick="loadProducts()">🔄 إعادة المحاولة</button>
+                    </div>
+                `;
+            }
+        }
+
+        function addToCart(id, name, price) {
+            const exist = cart.find(i => i.id === id);
+            if(exist) exist.qty++;
+            else cart.push({ id, name, price, qty: 1 });
+            updateCart();
+            showMessage("✅ تمت الإضافة", "success");
+        }
+
+        function updateCart() {
+            const cartItemsDiv = document.getElementById("cartItems");
+            if(cart.length === 0) {
+                cartItemsDiv.innerHTML = "<p class='text-muted'>السلة فارغة</p>";
+                document.getElementById("cartTotal").innerHTML = "";
+            } else {
+                cartItemsDiv.innerHTML = cart.map((item, idx) => `
+                    <div class="cart-item">
+                        <div><strong>${item.name}</strong><br><small>${item.price} ج.م × ${item.qty}</small></div>
+                        <div><button class="btn btn-sm btn-danger" onclick="removeFromCart(${idx})"><i class="fas fa-trash"></i></button></div>
+                    </div>
+                `).join("");
+                const total = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
+                document.getElementById("cartTotal").innerHTML = `المجموع: ${total} ج.م`;
+            }
+            document.getElementById("cartCount").innerText = cart.reduce((s,i) => s + i.qty, 0);
+        }
+
+        function removeFromCart(idx) { cart.splice(idx,1); updateCart(); }
+        function openCart() { document.getElementById("cartSidebar").classList.add("open"); document.getElementById("cartOverlay").classList.add("open"); }
+        function closeCart() { document.getElementById("cartSidebar").classList.remove("open"); document.getElementById("cartOverlay").classList.remove("open"); }
+
+        async function submitOrder() {
+            const name = document.getElementById("customerName").value;
+            const phone = document.getElementById("customerPhone").value;
+            const address = document.getElementById("customerAddress").value;
+            if(!name || !phone || !address) { showMessage("⚠️ الرجاء ملء جميع بيانات التوصيل", "danger"); return; }
+            if(cart.length === 0) { showMessage("⚠️ السلة فارغة", "danger"); return; }
+            
+            const items = cart.map(i => ({ productId: i.id, productName: i.name, price: i.price, quantity: i.qty }));
+            const totalPrice = cart.reduce((s,i) => s + (i.price * i.qty), 0);
+            const order = { customerName: name, customerPhone: phone, customerAddress: address, items, totalPrice };
+            
+            try {
+                const res = await fetch(ORDER_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(order) });
+                const data = await res.json();
+                if(data.success) {
+                    showMessage("✅ تم استلام طلبك بنجاح! سنتصل بك قريباً", "success");
+                    cart = [];
+                    updateCart();
+                    closeCart();
+                    document.getElementById("customerName").value = "";
+                    document.getElementById("customerPhone").value = "";
+                    document.getElementById("customerAddress").value = "";
+                }
+            } catch(e) { 
+                showMessage("❌ فشل إرسال الطلب - تأكد من تشغيل السيرفر", "danger"); 
+            }
+        }
+
+        function showMessage(msg, type) {
+            const div = document.createElement("div");
+            div.className = `alert alert-${type} position-fixed top-0 start-50 translate-middle-x mt-5`;
+            div.style.zIndex = "9999";
+            div.style.minWidth = "300px";
+            div.style.textAlign = "center";
+            div.style.borderRadius = "50px";
+            div.innerHTML = msg;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
+
+        // بدء التحميل
+        loadProducts();
+    </script>
+</body>
+</html>

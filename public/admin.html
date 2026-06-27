@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الأدمن - رفع الصور</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+        .navbar-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 0;
+            margin-bottom: 30px;
+        }
+        .navbar-custom .container { display: flex; justify-content: space-between; align-items: center; }
+        .navbar-brand-custom { color: white; font-size: 1.5rem; font-weight: bold; }
+        .welcome-text { color: white; }
+        .card-custom {
+            background: white;
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        .card-header-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 25px;
+            font-weight: bold;
+        }
+        .card-body-custom { padding: 25px; }
+        .form-control-custom {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .form-control-custom:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+        label { font-weight: 600; margin-bottom: 8px; display: block; }
+        .btn-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+        .product-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            transition: 0.3s;
+        }
+        .product-card:hover { transform: translateY(-5px); }
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .product-info { padding: 15px; }
+        .product-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 8px; }
+        .product-category {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        .product-price { color: #28a745; font-size: 1.3rem; font-weight: bold; margin: 10px 0; }
+        .product-stock {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .stock-available { background: #28a745; color: white; }
+        .stock-out { background: #dc3545; color: white; }
+        .product-actions { padding: 12px 15px; border-top: 1px solid #e9ecef; display: flex; gap: 10px; }
+        .btn-edit { background: #ffc107; border: none; padding: 6px 15px; border-radius: 20px; flex: 1; }
+        .btn-delete { background: #dc3545; color: white; border: none; padding: 6px 15px; border-radius: 20px; flex: 1; }
+        .preview-image {
+            max-width: 100px;
+            max-height: 100px;
+            margin-top: 10px;
+            border-radius: 10px;
+        }
+        .toast-message {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            min-width: 300px;
+            text-align: center;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: bold;
+        }
+        @keyframes slideDown {
+            from { top: -50px; opacity: 0; }
+            to { top: 80px; opacity: 1; }
+        }
+        @media (max-width: 768px) {
+            .navbar-brand-custom { font-size: 1rem; }
+            .welcome-text { font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar-custom">
+        <div class="container">
+            <div class="navbar-brand-custom">
+                <i class="fas fa-store me-2"></i>
+                لوحة تحكم الأدمن
+            </div>
+            <div class="welcome-text">
+                <i class="fas fa-user-shield me-1"></i>
+                مرحباً أيها المدير
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- إضافة منتج مع رفع صورة -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <i class="fas fa-plus-circle me-2"></i>
+                إضافة منتج جديد
+            </div>
+            <div class="card-body-custom">
+                <form id="productForm" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label>اسم المنتج</label>
+                            <input type="text" id="name" class="form-control-custom" required>
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label>السعر (ج.م)</label>
+                            <input type="number" id="price" class="form-control-custom" required>
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label>القسم</label>
+                            <input type="text" id="category" class="form-control-custom" required>
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label>الكمية</label>
+                            <input type="number" id="stock" class="form-control-custom" value="0">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label>صورة المنتج</label>
+                            <input type="file" id="productImage" class="form-control-custom" accept="image/*">
+                            <img id="imagePreview" class="preview-image" style="display: none;">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-9 mb-3">
+                            <label>الوصف</label>
+                            <textarea id="description" class="form-control-custom" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn-gradient">
+                                <i class="fas fa-plus me-1"></i> إضافة منتج
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- قائمة المنتجات -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3><i class="fas fa-boxes me-2" style="color: #667eea;"></i> قائمة المنتجات</h3>
+            <button class="btn btn-outline-primary" onclick="loadProducts()"><i class="fas fa-sync-alt me-1"></i> تحديث</button>
+        </div>
+        <div id="productsGrid" class="products-grid"></div>
+    </div>
+
+    <!-- مودال تعديل -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i> تعديل المنتج</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editId">
+                    <label>اسم المنتج</label>
+                    <input type="text" id="editName" class="form-control-custom" style="margin-bottom: 15px;">
+                    <label>السعر (ج.م)</label>
+                    <input type="number" id="editPrice" class="form-control-custom" style="margin-bottom: 15px;">
+                    <label>القسم</label>
+                    <input type="text" id="editCategory" class="form-control-custom" style="margin-bottom: 15px;">
+                    <label>الكمية</label>
+                    <input type="number" id="editStock" class="form-control-custom" style="margin-bottom: 15px;">
+                    <label>رابط الصورة</label>
+                    <input type="text" id="editImage" class="form-control-custom" style="margin-bottom: 15px;">
+                    <label>الوصف</label>
+                    <textarea id="editDescription" class="form-control-custom" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button class="btn btn-primary" onclick="updateProduct()">حفظ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- مودال حذف -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-trash me-2"></i> تأكيد الحذف</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-4x text-warning mb-3"></i>
+                    <p>هل أنت متأكد من حذف هذا المنتج؟</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button class="btn btn-danger" id="confirmDeleteBtn">تأكيد الحذف</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const API_URL = "http://localhost:4000/api/admin/products";
+        const UPLOAD_URL = "http://localhost:4000/upload";
+        let currentEditId = null;
+        let deleteId = null;
+
+        // معاينة الصورة قبل الرفع
+        document.getElementById("productImage").addEventListener("change", function(e) {
+            const preview = document.getElementById("imagePreview");
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    preview.src = event.target.result;
+                    preview.style.display = "block";
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+
+        // إضافة منتج مع رفع الصورة
+        document.getElementById("productForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.querySelector(".btn-gradient");
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الرفع...';
+            
+            const name = document.getElementById("name").value;
+            const price = document.getElementById("price").value;
+            const category = document.getElementById("category").value;
+            const stock = document.getElementById("stock").value;
+            const description = document.getElementById("description").value;
+            const imageFile = document.getElementById("productImage").files[0];
+            
+            let imageUrl = "";
+            
+            // رفع الصورة إذا وجدت
+            if (imageFile) {
+                const formData = new FormData();
+                formData.append("product", imageFile);
+                
+                try {
+                    const uploadRes = await fetch(UPLOAD_URL, {
+                        method: "POST",
+                        body: formData
+                    });
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success === 1) {
+                        imageUrl = uploadData.image_url;
+                    }
+                } catch (error) {
+                    showMessage("فشل رفع الصورة", "danger");
+                }
+            }
+            
+            // إضافة المنتج
+            const product = {
+                name: name,
+                price: parseFloat(price),
+                category: category,
+                stock: parseInt(stock) || 0,
+                image: imageUrl,
+                description: description
+            };
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(product)
+                });
+                
+                if (response.ok) {
+                    showMessage("✅ تمت إضافة المنتج بنجاح", "success");
+                    document.getElementById("productForm").reset();
+                    document.getElementById("imagePreview").style.display = "none";
+                    loadProducts();
+                } else {
+                    showMessage("❌ فشلت الإضافة", "danger");
+                }
+            } catch (error) {
+                showMessage("❌ خطأ في الاتصال", "danger");
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        });
+
+        // تحميل المنتجات
+        async function loadProducts() {
+            const grid = document.getElementById("productsGrid");
+            grid.innerHTML = `<div class="text-center"><div class="spinner-border text-primary"></div></div>`;
+            
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                
+                if (!data.success) throw new Error();
+                if (data.products.length === 0) {
+                    grid.innerHTML = `<div class="no-products text-center"><h4>لا توجد منتجات</h4></div>`;
+                    return;
+                }
+                
+                grid.innerHTML = data.products.map(product => `
+                    <div class="product-card">
+                        <div style="position: relative;">
+                            <span class="product-stock ${product.stock > 0 ? 'stock-available' : 'stock-out'}">
+                                ${product.stock > 0 ? `متوفر (${product.stock})` : 'غير متوفر'}
+                            </span>
+                            <img src="${product.image || 'https://placehold.co/400x300/e9ecef/495057?text=No+Image'}" 
+                                 class="product-image" 
+                                 onerror="this.src='https://placehold.co/400x300/e9ecef/495057?text=No+Image'">
+                        </div>
+                        <div class="product-info">
+                            <div class="product-title">${escapeHtml(product.name)}</div>
+                            <div class="product-category">${escapeHtml(product.category)}</div>
+                            <div class="product-price">${Number(product.price).toLocaleString()} ج.م</div>
+                        </div>
+                        <div class="product-actions">
+                            <button class="btn-edit" onclick="openEditModal('${product._id}')"><i class="fas fa-edit"></i> تعديل</button>
+                            <button class="btn-delete" onclick="openDeleteModal('${product._id}')"><i class="fas fa-trash"></i> حذف</button>
+                        </div>
+                    </div>
+                `).join("");
+            } catch (error) {
+                grid.innerHTML = `<div class="alert alert-danger text-center">فشل تحميل المنتجات</div>`;
+            }
+        }
+
+        async function openEditModal(id) {
+            const res = await fetch(API_URL);
+            const data = await res.json();
+            const product = data.products.find(p => p._id === id);
+            if (product) {
+                currentEditId = product._id;
+                document.getElementById("editName").value = product.name;
+                document.getElementById("editPrice").value = product.price;
+                document.getElementById("editCategory").value = product.category;
+                document.getElementById("editStock").value = product.stock;
+                document.getElementById("editImage").value = product.image || "";
+                document.getElementById("editDescription").value = product.description || "";
+                new bootstrap.Modal(document.getElementById("editModal")).show();
+            }
+        }
+
+        async function updateProduct() {
+            const updated = {
+                name: document.getElementById("editName").value,
+                price: parseFloat(document.getElementById("editPrice").value),
+                category: document.getElementById("editCategory").value,
+                stock: parseInt(document.getElementById("editStock").value) || 0,
+                image: document.getElementById("editImage").value,
+                description: document.getElementById("editDescription").value
+            };
+            await fetch(`${API_URL}/${currentEditId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updated)
+            });
+            showMessage("تم التعديل", "success");
+            bootstrap.Modal.getInstance(document.getElementById("editModal")).hide();
+            loadProducts();
+        }
+
+        function openDeleteModal(id) { deleteId = id; new bootstrap.Modal(document.getElementById("deleteModal")).show(); }
+        document.getElementById("confirmDeleteBtn").onclick = async () => {
+            await fetch(`${API_URL}/${deleteId}`, { method: "DELETE" });
+            showMessage("تم الحذف", "success");
+            bootstrap.Modal.getInstance(document.getElementById("deleteModal")).hide();
+            loadProducts();
+        };
+
+        function showMessage(msg, type) {
+            const div = document.createElement("div");
+            div.className = `toast-message alert alert-${type}`;
+            div.innerHTML = msg;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
+
+        function escapeHtml(text) { if (!text) return ""; const div = document.createElement("div"); div.textContent = text; return div.innerHTML; }
+        
+        loadProducts();
+    </script>
+</body>
+</html>
