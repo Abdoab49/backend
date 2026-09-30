@@ -96,7 +96,32 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 // ============================================
-//  📦 API ROUTES
+//  🎯 USED CODE SCHEMA (جديد — للبرومو كود)
+// ============================================
+
+const usedCodeSchema = new mongoose.Schema({
+  code: {
+    type: String,
+    required: true,
+    uppercase: true
+  },
+  userId: {
+    type: String,
+    required: true
+  },
+  usedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// ✅ فهرس فريد — code + userId ما يتكرروش
+usedCodeSchema.index({ code: 1, userId: 1 }, { unique: true });
+
+const UsedCode = mongoose.model('UsedCode', usedCodeSchema);
+
+// ============================================
+//  📦 API ROUTES — ORDERS
 // ============================================
 
 // ✅ GET: جلب جميع الطلبات
@@ -106,10 +131,10 @@ app.get('/api/orders', async (req, res) => {
     res.json(orders);
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Failed to fetch orders', 
-      error: error.message 
+      message: 'Failed to fetch orders',
+      error: error.message
     });
   }
 });
@@ -119,18 +144,18 @@ app.get('/api/orders/:id', async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Order not found' 
+        message: 'Order not found'
       });
     }
     res.json(order);
   } catch (error) {
     console.error('❌ Error fetching order:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Failed to fetch order', 
-      error: error.message 
+      message: 'Failed to fetch order',
+      error: error.message
     });
   }
 });
@@ -195,10 +220,10 @@ app.post('/api/orders', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error creating order:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Failed to create order', 
-      error: error.message 
+      message: 'Failed to create order',
+      error: error.message
     });
   }
 });
@@ -208,7 +233,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-    
+
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -237,10 +262,10 @@ app.put('/api/orders/:id/status', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error updating order:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Failed to update order', 
-      error: error.message 
+      message: 'Failed to update order',
+      error: error.message
     });
   }
 });
@@ -249,7 +274,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
 app.delete('/api/orders/:id', async (req, res) => {
   try {
     const order = await Order.findByIdAndDelete(req.params.id);
-    
+
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -264,11 +289,76 @@ app.delete('/api/orders/:id', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error deleting order:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Failed to delete order', 
-      error: error.message 
+      message: 'Failed to delete order',
+      error: error.message
     });
+  }
+});
+
+// ============================================
+//  🎯 API ROUTES — PROMO CODES (جديد)
+// ============================================
+
+// ✅ POST: فحص + تسجيل البرومو كود
+app.post('/api/promo/check-code', async (req, res) => {
+  const { code, userId } = req.body;
+
+  if (!code || !userId) {
+    return res.status(400).json({
+      valid: false,
+      error: 'Code wla userId manquant'
+    });
+  }
+
+  try {
+    // ✅ 1. شوف واش الكود مستعمل
+    const existing = await UsedCode.findOne({
+      code: code.toUpperCase(),
+      userId
+    });
+
+    if (existing) {
+      return res.json({
+        valid: false,
+        message: 'Hada l\'code deja msta3mel'
+      });
+    }
+
+    // ✅ 2. سجلو
+    await UsedCode.create({
+      code: code.toUpperCase(),
+      userId
+    });
+
+    res.json({ valid: true });
+
+  } catch (error) {
+    console.error('❌ Promo error:', error);
+
+    // ✅ إذا كان فهرس فريد (code + userId موجود)
+    if (error.code === 11000) {
+      return res.json({
+        valid: false,
+        message: 'Hada l\'code deja msta3mel'
+      });
+    }
+
+    res.status(500).json({
+      valid: false,
+      error: 'Mochkil f server'
+    });
+  }
+});
+
+// ✅ GET: جلب الأكواد المستعملة (لمستخدم)
+app.get('/api/promo/used/:userId', async (req, res) => {
+  try {
+    const codes = await UsedCode.find({ userId: req.params.userId });
+    res.json({ codes: codes.map(c => c.code) });
+  } catch (error) {
+    res.status(500).json({ error: 'Mochkil f server' });
   }
 });
 
@@ -279,4 +369,5 @@ app.delete('/api/orders/:id', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 API: http://localhost:${PORT}/api/orders`);
+  console.log(`📡 Promo: http://localhost:${PORT}/api/promo/check-code`);
 });
