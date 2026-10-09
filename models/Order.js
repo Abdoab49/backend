@@ -5,14 +5,14 @@ const OrderSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: false,   // ✅ Beddelna l false — 7it Cart ma kayb3etch userId
+    required: false,
   },
   items: [
     {
       productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product',
-        required: false,   // ✅ Beddelna l false
+        required: false,
       },
       name: String,
       price: Number,
@@ -23,17 +23,35 @@ const OrderSchema = new mongoose.Schema({
       },
       size: String,
       image: String,
+      category: String,
     },
   ],
+  subtotal: {
+    type: Number,
+    default: 0,
+  },
+  shipping: {
+    type: Number,
+    default: 0,
+  },
+  discountPercent: {
+    type: Number,
+    default: 0,
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+  },
   totalAmount: {
     type: Number,
     required: true,
   },
+  // ✅ SHIPPING ADDRESS — b region
   shippingAddress: {
-    fullName: { type: String, default: '' },           // ✅ Jdid
-    phone: { type: String, default: '' },              // ✅ Jdid
+    fullName: { type: String, default: '' },
+    phone: { type: String, default: '' },
     city: { type: String, default: '' },
-    region: { type: String, default: '' },             // ✅ Jdid — HADA LI BGHITI
+    region: { type: String, default: '' },     // ✅ HADA LI BGHITI
     street: { type: String, default: '' },
     state: { type: String, default: 'Casablanca-Settat' },
     zipCode: { type: String, default: '20000' },
@@ -47,7 +65,7 @@ const OrderSchema = new mongoose.Schema({
   paymentMethod: {
     type: String,
     enum: ['credit_card', 'paypal', 'cash_on_delivery'],
-    required: true,
+    default: 'cash_on_delivery',
   },
   paymentStatus: {
     type: String,

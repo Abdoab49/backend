@@ -1,115 +1,96 @@
+// backend/routes/orders.js
 const express = require('express');
 const router = express.Router();
 const Order = require('../models/Order');
-const Product = require('../models/Product');
-const { auth } = require('../middleware/auth');
 
 // ============================================
-//  📦 ORDERS API
+// ✅ POST /api/orders — Créer une commande
 // ============================================
-
-// ✅ إنشاء طلب جديد
-router.post('/', auth, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const { items, shippingAddress, paymentMethod } = req.body;
-    const userId = req.user._id;
+    const {
+      items,
+      subtotal,
+      shipping,
+      discountPercent,
+      discountAmount,
+      totalAmount,
+      paymentMethod,
+      shippingAddress,
+    } = req.body;
 
-    // ===== حساب المجموع الكلي =====
-    let totalAmount = 0;
-    const orderItems = [];
-
-    for (const item of items) {
-      const product = await Product.findById(item.productId);
-      if (!product) {
-        return res.status(404).json({ message: `Product ${item.productId} not found` });
-      }
-
-      totalAmount += product.price * item.quantity;
-      orderItems.push({
-        productId: product._id,
-        name: product.name,
-        price: product.price,
-        quantity: item.quantity,
-        size: item.size || 'M',
-        image: product.image,
+    if (!items || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order must have at least one item',
       });
     }
 
-    const order = new Order({
-      userId,
-      items: orderItems,
-      totalAmount,
-      shippingAddress,
-      paymentMethod,
+    const newOrder = new Order({
+      items: items.map(item => ({
+        name: item.name || 'Unknown Product',
+        price: item.price || 0,
+        quantity: item.quantity || 1,
+        size: item.size || 'M',
+        image: item.image || '',
+        category: item.category || 'T-Shirts',
+      })),
+      subtotal: subtotal || 0,
+      shipping: shipping || 0,
+      discountPercent: discountPercent || 0,
+      discountAmount: discountAmount || 0,
+      totalAmount: totalAmount || 0,
+      paymentMethod: paymentMethod || 'cash_on_delivery',
+      shippingAddress: {
+        fullName: shippingAddress?.fullName || '',
+        phone: shippingAddress?.phone || '',
+        city: shippingAddress?.city || '',
+        region: shippingAddress?.region || '',     // ✅ HADA LI BGHITI
+        street: shippingAddress?.street || '',
+        state: shippingAddress?.state || 'Casablanca-Settat',
+        zipCode: shippingAddress?.zipCode || '20000',
+        country: shippingAddress?.country || 'Morocco',
+      },
+      status: 'pending',
+      paymentStatus: 'pending',
+      createdAt: new Date(),
     });
 
-    await order.save();
-    res.status(201).json(order);
+    const savedOrder = await newOrder.save();
+
+    console.log('📦 New Order:', savedOrder);
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      order: savedOrder,
+      totalAmount: savedOrder.totalAmount,
+    });
+
   } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(400).json({ message: error.message });
+    console.error('❌ Error creating order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create order',
+      error: error.message,
+    });
   }
 });
 
-// ✅ جلب جميع الطلبات (للمستخدم الحالي)
-router.get('/', auth, async (req, res) => {
+// ============================================
+// ✅ GET /api/orders — Récupérer toutes les commandes
+// ============================================
+router.get('/', async (req, res) => {
   try {
-    const orders = await Order.find({ userId: req.user._id })
-      .sort({ createdAt: -1 });
-    res.json(orders);
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.status(200).json(orders);
   } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ✅ جلب طلب محدد
-router.get('/:id', auth, async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-    // التأكد أن المستخدم هو صاحب الطلب أو Admin
-    if (order.userId.toString() !== req.user._id.toString() && !req.user.isAdmin) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    res.json(order);
-  } catch (error) {
-    console.error('Error fetching order:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ✅ تحديث حالة الطلب (Admin فقط)
-router.put('/:id/status', auth, async (req, res) => {
-  try {
-    // التحقق من صلاحيات Admin
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ message: 'Admin access required' });
-    }
-
-    const { status } = req.body;
-    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-    
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
-    }
-
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-    
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-    
-    res.json(order);
-  } catch (error) {
-    console.error('Error updating order:', error);
-    res.status(400).json({ message: error.message });
+    console.error('❌ Error fetching orders:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch orders',
+      error: error.message,
+    });
   }
 });
 
