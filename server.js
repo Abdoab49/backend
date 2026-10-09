@@ -55,6 +55,10 @@ const orderSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    region: {                          // ✅ Zid hadi
+      type: String,
+      default: ''
+    },
     street: {
       type: String,
       required: true
@@ -191,6 +195,7 @@ app.post('/api/orders', async (req, res) => {
         fullName: shippingAddress.fullName,
         phone: shippingAddress.phone,
         city: shippingAddress.city,
+        region: shippingAddress.region || '',     // ✅ Zid hadi
         street: shippingAddress.street,
         state: shippingAddress.state || 'Casablanca-Settat',
         zipCode: shippingAddress.zipCode || '20000',
@@ -207,6 +212,7 @@ app.post('/api/orders', async (req, res) => {
     console.log('📦 New Order saved to MongoDB:', {
       id: order._id,
       customer: order.shippingAddress.fullName,
+      region: order.shippingAddress.region,       // ✅ Zid hadi
       total: order.totalAmount,
       items: order.items.length
     });
