@@ -1,17 +1,18 @@
+// backend/models/Order.js
 const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: false,   // ✅ Beddelna l false — 7it Cart ma kayb3etch userId
   },
   items: [
     {
       productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product',
-        required: true,
+        required: false,   // ✅ Beddelna l false
       },
       name: String,
       price: Number,
@@ -29,11 +30,14 @@ const OrderSchema = new mongoose.Schema({
     required: true,
   },
   shippingAddress: {
-    street: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    zipCode: { type: String, required: true },
-    country: { type: String, required: true },
+    fullName: { type: String, default: '' },           // ✅ Jdid
+    phone: { type: String, default: '' },              // ✅ Jdid
+    city: { type: String, default: '' },
+    region: { type: String, default: '' },             // ✅ Jdid — HADA LI BGHITI
+    street: { type: String, default: '' },
+    state: { type: String, default: 'Casablanca-Settat' },
+    zipCode: { type: String, default: '20000' },
+    country: { type: String, default: 'Morocco' },
   },
   status: {
     type: String,
