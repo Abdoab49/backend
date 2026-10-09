@@ -26,26 +26,11 @@ const OrderSchema = new mongoose.Schema({
       category: String,
     },
   ],
-  subtotal: {
-    type: Number,
-    default: 0,
-  },
-  shipping: {
-    type: Number,
-    default: 0,
-  },
-  discountPercent: {
-    type: Number,
-    default: 0,
-  },
-  discountAmount: {
-    type: Number,
-    default: 0,
-  },
-  totalAmount: {
-    type: Number,
-    required: true,
-  },
+  subtotal: { type: Number, default: 0 },
+  shipping: { type: Number, default: 0 },
+  discountPercent: { type: Number, default: 0 },
+  discountAmount: { type: Number, default: 0 },
+  totalAmount: { type: Number, required: true },
   shippingAddress: {
     fullName: { type: String, default: '' },
     phone: { type: String, default: '' },
@@ -75,6 +60,6 @@ const OrderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-});
+}, { strict: false });   // ✅ Hadi l'mochkil — bla hadi, region ma kaytsavech
 
 module.exports = mongoose.model('Order', OrderSchema);
