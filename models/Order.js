@@ -46,7 +46,6 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  // ✅ SHIPPING ADDRESS — b region
   shippingAddress: {
     fullName: { type: String, default: '' },
     phone: { type: String, default: '' },

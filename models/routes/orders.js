@@ -41,6 +41,7 @@ router.post('/', async (req, res) => {
       discountAmount: discountAmount || 0,
       totalAmount: totalAmount || 0,
       paymentMethod: paymentMethod || 'cash_on_delivery',
+      // ✅ SHIPPING ADDRESS — b region
       shippingAddress: {
         fullName: shippingAddress?.fullName || '',
         phone: shippingAddress?.phone || '',
