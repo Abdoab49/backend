@@ -17,10 +17,19 @@ mongoose.connect(MONGODB_URI)
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ============================================
-//  📦 ORDER SCHEMA (نموذج الطلب الأصلي)
+//  🔐 ADMIN PASSWORD
 // ============================================
+const ADMIN_PASSWORD = 'lanada2026admin';   // ✅ Bdel hadi b password dyalek
+const ADMIN_TOKEN = 'lanada_admin_token_2026';
 
+// ============================================
+//  📦 ORDER SCHEMA — b userId + region
+// ============================================
 const orderSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    default: 'anonymous'
+  },
   items: [{
     name: String,
     price: Number,
@@ -30,51 +39,18 @@ const orderSchema = new mongoose.Schema({
     category: String,
     brand: String
   }],
-  totalAmount: {
-    type: Number,
-    required: true
-  },
-  subtotal: {
-    type: Number,
-    required: true
-  },
-  discount: {
-    type: Number,
-    default: 0
-  },
+  totalAmount: { type: Number, required: true },
+  subtotal: { type: Number, required: true },
+  discount: { type: Number, default: 0 },
   shippingAddress: {
-    fullName: {
-      type: String,
-      required: true
-    },
-    phone: {
-      type: String,
-      required: true
-    },
-    city: {
-      type: String,
-      required: true
-    },
-    region: {                          // ✅ Zid hadi
-      type: String,
-      default: ''
-    },
-    street: {
-      type: String,
-      required: true
-    },
-    state: {
-      type: String,
-      default: 'Casablanca-Settat'
-    },
-    zipCode: {
-      type: String,
-      default: '20000'
-    },
-    country: {
-      type: String,
-      default: 'Morocco'
-    }
+    fullName: { type: String, required: true },
+    phone: { type: String, required: true },
+    city: { type: String, required: true },
+    region: { type: String, default: '' },
+    street: { type: String, required: true },
+    state: { type: String, default: 'Casablanca-Settat' },
+    zipCode: { type: String, default: '20000' },
+    country: { type: String, default: 'Morocco' }
   },
   paymentMethod: {
     type: String,
@@ -91,47 +67,41 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'failed'],
     default: 'pending'
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  createdAt: { type: Date, default: Date.now }
 });
 
 const Order = mongoose.model('Order', orderSchema);
 
 // ============================================
-//  🎯 USED CODE SCHEMA (جديد — للبرومو كود)
+//  🎯 USED CODE SCHEMA
 // ============================================
-
 const usedCodeSchema = new mongoose.Schema({
-  code: {
-    type: String,
-    required: true,
-    uppercase: true
-  },
-  userId: {
-    type: String,
-    required: true
-  },
-  usedAt: {
-    type: Date,
-    default: Date.now
-  }
+  code: { type: String, required: true, uppercase: true },
+  userId: { type: String, required: true },
+  usedAt: { type: Date, default: Date.now }
 });
 
-// ✅ فهرس فريد — code + userId ما يتكرروش
 usedCodeSchema.index({ code: 1, userId: 1 }, { unique: true });
 
 const UsedCode = mongoose.model('UsedCode', usedCodeSchema);
 
 // ============================================
-//  📦 API ROUTES — ORDERS
+//  📦 API ROUTES — ORDERS (CLIENT)
 // ============================================
 
-// ✅ GET: جلب جميع الطلبات
+// ✅ GET: orders dyal client (b userId)
 app.get('/api/orders', async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId is required'
+      });
+    }
+
+    const orders = await Order.find({ userId }).sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
@@ -143,33 +113,19 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// ✅ GET: جلب طلب محدد
-app.get('/api/orders/:id', async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-    res.json(order);
-  } catch (error) {
-    console.error('❌ Error fetching order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch order',
-      error: error.message
-    });
-  }
-});
-
-// ✅ POST: إنشاء طلب جديد (الأصلي)
+// ✅ POST: créer une commande (b userId)
 app.post('/api/orders', async (req, res) => {
   try {
-    const { items, totalAmount, subtotal, discount, shippingAddress, paymentMethod } = req.body;
+    const {
+      userId,
+      items,
+      totalAmount,
+      subtotal,
+      discount,
+      shippingAddress,
+      paymentMethod
+    } = req.body;
 
-    // ✅ التحقق من وجود العناصر
     if (!items || items.length === 0) {
       return res.status(400).json({
         success: false,
@@ -177,7 +133,6 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
-    // ✅ التحقق من معلومات الشحن
     if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.phone || !shippingAddress.city || !shippingAddress.street) {
       return res.status(400).json({
         success: false,
@@ -185,8 +140,8 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
-    // ✅ إنشاء الطلب
     const order = new Order({
+      userId: userId || 'anonymous',
       items: items,
       totalAmount: totalAmount || 0,
       subtotal: subtotal || totalAmount || 0,
@@ -195,7 +150,7 @@ app.post('/api/orders', async (req, res) => {
         fullName: shippingAddress.fullName,
         phone: shippingAddress.phone,
         city: shippingAddress.city,
-        region: shippingAddress.region || '',     // ✅ Zid hadi
+        region: shippingAddress.region || '',
         street: shippingAddress.street,
         state: shippingAddress.state || 'Casablanca-Settat',
         zipCode: shippingAddress.zipCode || '20000',
@@ -206,13 +161,13 @@ app.post('/api/orders', async (req, res) => {
       paymentStatus: 'pending'
     });
 
-    // ✅ حفظ في MongoDB
     await order.save();
 
     console.log('📦 New Order saved to MongoDB:', {
       id: order._id,
+      userId: order.userId,
       customer: order.shippingAddress.fullName,
-      region: order.shippingAddress.region,       // ✅ Zid hadi
+      region: order.shippingAddress.region,
       total: order.totalAmount,
       items: order.items.length
     });
@@ -234,10 +189,79 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// ✅ PUT: تحديث حالة الطلب
-app.put('/api/orders/:id/status', async (req, res) => {
+// ============================================
+//  🔐 API ROUTES — ADMIN
+// ============================================
+
+// ✅ POST: login admin
+app.post('/api/admin/login', async (req, res) => {
   try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required'
+      });
+    }
+
+    if (password !== ADMIN_PASSWORD) {
+      return res.status(401).json({
+        success: false,
+        message: 'Password ghalat'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token: ADMIN_TOKEN
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// ✅ GET: koul orders (ghir admin)
+app.get('/api/admin/orders', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (token !== ADMIN_TOKEN) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    console.error('❌ Error fetching all orders:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch orders',
+      error: error.message
+    });
+  }
+});
+
+// ✅ PUT: bdel status dyal order (ghir admin)
+app.put('/api/admin/orders/:id/status', async (req, res) => {
+  try {
+    const { token } = req.query;
     const { status } = req.body;
+
+    if (token !== ADMIN_TOKEN) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
     const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
     if (!validStatuses.includes(status)) {
@@ -260,6 +284,11 @@ app.put('/api/orders/:id/status', async (req, res) => {
       });
     }
 
+    console.log('✅ Order status updated:', {
+      id: order._id,
+      status: order.status
+    });
+
     res.json({
       success: true,
       message: 'Order status updated',
@@ -276,9 +305,18 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// ✅ DELETE: حذف طلب
-app.delete('/api/orders/:id', async (req, res) => {
+// ✅ DELETE: حذف طلب (admin)
+app.delete('/api/admin/orders/:id', async (req, res) => {
   try {
+    const { token } = req.query;
+
+    if (token !== ADMIN_TOKEN) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
     const order = await Order.findByIdAndDelete(req.params.id);
 
     if (!order) {
@@ -304,10 +342,9 @@ app.delete('/api/orders/:id', async (req, res) => {
 });
 
 // ============================================
-//  🎯 API ROUTES — PROMO CODES (جديد)
+//  🎯 API ROUTES — PROMO CODES
 // ============================================
 
-// ✅ POST: فحص + تسجيل البرومو كود
 app.post('/api/promo/check-code', async (req, res) => {
   const { code, userId } = req.body;
 
@@ -319,7 +356,6 @@ app.post('/api/promo/check-code', async (req, res) => {
   }
 
   try {
-    // ✅ 1. شوف واش الكود مستعمل
     const existing = await UsedCode.findOne({
       code: code.toUpperCase(),
       userId
@@ -332,7 +368,6 @@ app.post('/api/promo/check-code', async (req, res) => {
       });
     }
 
-    // ✅ 2. سجلو
     await UsedCode.create({
       code: code.toUpperCase(),
       userId
@@ -343,7 +378,6 @@ app.post('/api/promo/check-code', async (req, res) => {
   } catch (error) {
     console.error('❌ Promo error:', error);
 
-    // ✅ إذا كان فهرس فريد (code + userId موجود)
     if (error.code === 11000) {
       return res.json({
         valid: false,
@@ -358,7 +392,6 @@ app.post('/api/promo/check-code', async (req, res) => {
   }
 });
 
-// ✅ GET: جلب الأكواد المستعملة (لمستخدم)
 app.get('/api/promo/used/:userId', async (req, res) => {
   try {
     const codes = await UsedCode.find({ userId: req.params.userId });
@@ -371,9 +404,9 @@ app.get('/api/promo/used/:userId', async (req, res) => {
 // ============================================
 //  🚀 START SERVER
 // ============================================
-
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 API: http://localhost:${PORT}/api/orders`);
+  console.log(`🔐 Admin: http://localhost:${PORT}/api/admin/orders`);
   console.log(`📡 Promo: http://localhost:${PORT}/api/promo/check-code`);
 });
