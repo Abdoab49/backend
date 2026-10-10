@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,17 +20,14 @@ mongoose.connect(MONGODB_URI)
 // ============================================
 //  🔐 ADMIN PASSWORD
 // ============================================
-const ADMIN_PASSWORD = 'lanada2026admin';   // ✅ Bdel hadi b password dyalek
+const ADMIN_PASSWORD = 'lanada2026admin';
 const ADMIN_TOKEN = 'lanada_admin_token_2026';
 
 // ============================================
-//  📦 ORDER SCHEMA — b userId + region
+//  📦 ORDER SCHEMA
 // ============================================
 const orderSchema = new mongoose.Schema({
-  userId: {
-    type: String,
-    default: 'anonymous'
-  },
+  userId: { type: String, default: 'anonymous' },
   items: [{
     name: String,
     price: Number,
@@ -73,6 +71,43 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 // ============================================
+//  👤 USER SCHEMA — Login System
+// ============================================
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true
+  },
+  password: { type: String, required: true },
+  fullName: { type: String, required: true, trim: true },
+  phone: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+userSchema.pre('save', function (next) {
+  if (!this.isModified('password')) return next();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto
+    .pbkdf2Sync(this.password, salt, 1000, 64, 'sha512')
+    .toString('hex');
+  this.password = `${salt}:${hash}`;
+  next();
+});
+
+userSchema.methods.comparePassword = function (candidatePassword) {
+  const [salt, hash] = this.password.split(':');
+  const candidateHash = crypto
+    .pbkdf2Sync(candidatePassword, salt, 1000, 64, 'sha512')
+    .toString('hex');
+  return hash === candidateHash;
+};
+
+const User = mongoose.model('User', userSchema);
+
+// ============================================
 //  🎯 USED CODE SCHEMA
 // ============================================
 const usedCodeSchema = new mongoose.Schema({
@@ -86,10 +121,167 @@ usedCodeSchema.index({ code: 1, userId: 1 }, { unique: true });
 const UsedCode = mongoose.model('UsedCode', usedCodeSchema);
 
 // ============================================
+//  🔐 API ROUTES — AUTH
+// ============================================
+
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { email, password, fullName, phone } = req.body;
+
+    if (!email || !password || !fullName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, w full name — koulhom khassin'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password khass ykoun 3la l9al 6 characters'
+      });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hada l\'email deja msta3mel'
+      });
+    }
+
+    const user = new User({
+      email: email.toLowerCase(),
+      password,
+      fullName,
+      phone: phone || ''
+    });
+
+    await user.save();
+
+    const userId = 'user_' + user._id.toString();
+
+    console.log('👤 New user created:', {
+      id: user._id,
+      email: user.email,
+      fullName: user.fullName
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Compte créé avec succès',
+      userId: userId,
+      user: {
+        _id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Signup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Mochkil f server',
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email w password — koulhom khassin'
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Email wla password ghalat'
+      });
+    }
+
+    const isMatch = user.comparePassword(password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Email wla password ghalat'
+      });
+    }
+
+    const userId = 'user_' + user._id.toString();
+
+    console.log('🔐 User logged in:', {
+      id: user._id,
+      email: user.email
+    });
+
+    res.json({
+      success: true,
+      message: 'Login réussi',
+      userId: userId,
+      user: {
+        _id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Mochkil f server',
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/auth/me/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const realId = userId.replace('user_', '');
+    const user = await User.findById(realId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        _id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// ============================================
 //  📦 API ROUTES — ORDERS (CLIENT)
 // ============================================
 
-// ✅ GET: orders dyal client (b userId)
 app.get('/api/orders', async (req, res) => {
   try {
     const { userId } = req.query;
@@ -113,7 +305,6 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// ✅ POST: créer une commande (b userId)
 app.post('/api/orders', async (req, res) => {
   try {
     const {
@@ -193,7 +384,6 @@ app.post('/api/orders', async (req, res) => {
 //  🔐 API ROUTES — ADMIN
 // ============================================
 
-// ✅ POST: login admin
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { password } = req.body;
@@ -225,7 +415,6 @@ app.post('/api/admin/login', async (req, res) => {
   }
 });
 
-// ✅ GET: koul orders (ghir admin)
 app.get('/api/admin/orders', async (req, res) => {
   try {
     const { token } = req.query;
@@ -249,7 +438,6 @@ app.get('/api/admin/orders', async (req, res) => {
   }
 });
 
-// ✅ PUT: bdel status dyal order (ghir admin)
 app.put('/api/admin/orders/:id/status', async (req, res) => {
   try {
     const { token } = req.query;
@@ -305,7 +493,6 @@ app.put('/api/admin/orders/:id/status', async (req, res) => {
   }
 });
 
-// ✅ DELETE: حذف طلب (admin)
 app.delete('/api/admin/orders/:id', async (req, res) => {
   try {
     const { token } = req.query;
@@ -407,6 +594,7 @@ app.get('/api/promo/used/:userId', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 API: http://localhost:${PORT}/api/orders`);
+  console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/login`);
   console.log(`🔐 Admin: http://localhost:${PORT}/api/admin/orders`);
   console.log(`📡 Promo: http://localhost:${PORT}/api/promo/check-code`);
 });
