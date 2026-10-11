@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');   // ✅ JDID
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +23,12 @@ mongoose.connect(MONGODB_URI)
 // ============================================
 const ADMIN_PASSWORD = 'lanada2026admin';
 const ADMIN_TOKEN = 'lanada_admin_token_2026';
+
+// ============================================
+//  🔵 GOOGLE OAUTH — CLIENT ID
+// ============================================
+const GOOGLE_CLIENT_ID = 'HNA_LSAQ_CLIENT_ID_DYALEK.apps.googleusercontent.com';
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // ============================================
 //  📦 ORDER SCHEMA
@@ -71,7 +78,7 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 // ============================================
-//  👤 USER SCHEMA — Login System
+//  👤 USER SCHEMA — b Google
 // ============================================
 const userSchema = new mongoose.Schema({
   email: {
@@ -84,6 +91,9 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   fullName: { type: String, required: true, trim: true },
   phone: { type: String, default: '' },
+  googleId: { type: String, default: '' },       // ✅ JDID
+  picture: { type: String, default: '' },         // ✅ JDID
+  provider: { type: String, default: 'local' },  // ✅ JDID — 'local' wla 'google'
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -154,7 +164,8 @@ app.post('/api/auth/signup', async (req, res) => {
       email: email.toLowerCase(),
       password,
       fullName,
-      phone: phone || ''
+      phone: phone || '',
+      provider: 'local'
     });
 
     await user.save();
@@ -274,6 +285,103 @@ app.get('/api/auth/me/:userId', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+});
+
+// ============================================
+//  🔵 GOOGLE LOGIN — /api/auth/google
+// ============================================
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({
+        success: false,
+        message: 'Credential is required'
+      });
+    }
+
+    // ✅ Verify token m3a Google
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const {
+      email,
+      name: fullName,
+      picture,
+      sub: googleId
+    } = payload;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email not found in Google account'
+      });
+    }
+
+    // ✅ Check wach user deja kayn
+    let user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // ✅ Créer user jdid via Google
+      user = new User({
+        email: email.toLowerCase(),
+        password: 'google_' + googleId + '_' + Date.now(),  // ✅ Dummy password
+        fullName: fullName || 'Google User',
+        phone: '',
+        googleId: googleId,
+        picture: picture || '',
+        provider: 'google'
+      });
+
+      await user.save();
+
+      console.log('🔵 New user via Google:', {
+        id: user._id,
+        email: user.email,
+        fullName: user.fullName
+      });
+    } else {
+      // ✅ Update Google info
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.picture = picture || '';
+        user.provider = 'google';
+        await user.save();
+      }
+
+      console.log('🔵 Existing user logged in via Google:', {
+        id: user._id,
+        email: user.email
+      });
+    }
+
+    const userId = 'user_' + user._id.toString();
+
+    res.json({
+      success: true,
+      message: 'Google login successful',
+      userId: userId,
+      user: {
+        _id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone,
+        picture: user.picture
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Google auth error:', error);
+    res.status(401).json({
+      success: false,
+      message: 'Google token invalide',
+      error: error.message
     });
   }
 });
@@ -595,6 +703,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 API: http://localhost:${PORT}/api/orders`);
   console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/login`);
+  console.log(`🔵 Google: http://localhost:${PORT}/api/auth/google`);
   console.log(`🔐 Admin: http://localhost:${PORT}/api/admin/orders`);
   console.log(`📡 Promo: http://localhost:${PORT}/api/promo/check-code`);
 });
