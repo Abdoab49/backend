@@ -3,7 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const { OAuth2Client } = require('google-auth-library');   // ✅ JDID
+const { OAuth2Client } = require('google-auth-library');
+const nodemailer = require('nodemailer');   // ✅ JDID
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,6 +30,20 @@ const ADMIN_TOKEN = 'lanada_admin_token_2026';
 // ============================================
 const GOOGLE_CLIENT_ID = 'HNA_LSAQ_CLIENT_ID_DYALEK.apps.googleusercontent.com';
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+// ============================================
+//  📧 GMAIL — NODEMAILER
+// ============================================
+const GMAIL_USER = process.env.GMAIL_USER || 'email@gmail.com';              // ⚠️ Bdel hadi
+const GMAIL_PASS = process.env.GMAIL_PASS || 'xxxx xxxx xxxx xxxx';           // ⚠️ Bdel hadi
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: GMAIL_USER,
+    pass: GMAIL_PASS
+  }
+});
 
 // ============================================
 //  📦 ORDER SCHEMA
@@ -91,9 +106,9 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   fullName: { type: String, required: true, trim: true },
   phone: { type: String, default: '' },
-  googleId: { type: String, default: '' },       // ✅ JDID
-  picture: { type: String, default: '' },         // ✅ JDID
-  provider: { type: String, default: 'local' },  // ✅ JDID — 'local' wla 'google'
+  googleId: { type: String, default: '' },
+  picture: { type: String, default: '' },
+  provider: { type: String, default: 'local' },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -129,6 +144,20 @@ const usedCodeSchema = new mongoose.Schema({
 usedCodeSchema.index({ code: 1, userId: 1 }, { unique: true });
 
 const UsedCode = mongoose.model('UsedCode', usedCodeSchema);
+
+// ============================================
+//  🔑 PASSWORD RESET SCHEMA — ✅ JDID
+// ============================================
+const passwordResetSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  email: { type: String, required: true },
+  token: { type: String, required: true, unique: true },
+  expiresAt: { type: Date, required: true },
+  used: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
 
 // ============================================
 //  🔐 API ROUTES — AUTH
@@ -290,7 +319,7 @@ app.get('/api/auth/me/:userId', async (req, res) => {
 });
 
 // ============================================
-//  🔵 GOOGLE LOGIN — /api/auth/google
+//  🔵 GOOGLE LOGIN
 // ============================================
 app.post('/api/auth/google', async (req, res) => {
   try {
@@ -303,7 +332,6 @@ app.post('/api/auth/google', async (req, res) => {
       });
     }
 
-    // ✅ Verify token m3a Google
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: GOOGLE_CLIENT_ID
@@ -324,14 +352,12 @@ app.post('/api/auth/google', async (req, res) => {
       });
     }
 
-    // ✅ Check wach user deja kayn
     let user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      // ✅ Créer user jdid via Google
       user = new User({
         email: email.toLowerCase(),
-        password: 'google_' + googleId + '_' + Date.now(),  // ✅ Dummy password
+        password: 'google_' + googleId + '_' + Date.now(),
         fullName: fullName || 'Google User',
         phone: '',
         googleId: googleId,
@@ -347,7 +373,6 @@ app.post('/api/auth/google', async (req, res) => {
         fullName: user.fullName
       });
     } else {
-      // ✅ Update Google info
       if (!user.googleId) {
         user.googleId = googleId;
         user.picture = picture || '';
@@ -381,6 +406,169 @@ app.post('/api/auth/google', async (req, res) => {
     res.status(401).json({
       success: false,
       message: 'Google token invalide',
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+//  🔑 FORGOT PASSWORD — ✅ JDID
+// ============================================
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // ✅ Ma ngoulouch wach email kayn (security)
+      return res.json({
+        success: true,
+        message: 'Ila email kayn, ghadi tsift lik link'
+      });
+    }
+
+    // ✅ Msa7 tokens 9damin
+    await PasswordReset.deleteMany({ userId: user._id.toString() });
+
+    // ✅ Créer token jdid
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await PasswordReset.create({
+      userId: user._id.toString(),
+      email: user.email,
+      token,
+      expiresAt
+    });
+
+    // ✅ Link dyal reset
+    const resetLink = `https://lanada.shop/reset-password/${token}`;
+
+    // ✅ Email HTML
+    const mailOptions = {
+      from: `"LANADA Shop" <${GMAIL_USER}>`,
+      to: user.email,
+      subject: 'Reset your password — LANADA',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #000;">Reset Password</h2>
+          <p>Salut ${user.fullName},</p>
+          <p>Talabti reset password dyalek. Kliki 3la link:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" 
+               style="display: inline-block; padding: 14px 30px; background: teal; color: white; text-decoration: none; border-radius: 20px; font-weight: 700;">
+              Reset Password
+            </a>
+          </div>
+          <p>Wla copy had link:</p>
+          <p style="background: #f5f5f5; padding: 10px; border-radius: 5px; word-break: break-all;">
+            ${resetLink}
+          </p>
+          <p style="color: #999; font-size: 12px;">
+            Hada link kaykhdem ghir 1 hour. Ila ma talabtich reset — 3tini 3lik.
+          </p>
+          <p style="color: #999; font-size: 12px;">
+            — LANADA Team
+          </p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log('📧 Reset email sent to:', user.email);
+
+    res.json({
+      success: true,
+      message: 'Ila email kayn, ghadi tsift lik link'
+    });
+
+  } catch (error) {
+    console.error('❌ Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Mochkil f server',
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token w password — koulhom khassin'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password khass ykoun 3la l9al 6 characters'
+      });
+    }
+
+    const resetRecord = await PasswordReset.findOne({ token });
+
+    if (!resetRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token invalide wla expiré'
+      });
+    }
+
+    if (resetRecord.used) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hada token deja msta3mel'
+      });
+    }
+
+    if (new Date() > resetRecord.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token expiré. Talab reset jdid.'
+      });
+    }
+
+    const user = await User.findById(resetRecord.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    resetRecord.used = true;
+    await resetRecord.save();
+
+    console.log('✅ Password reset for:', user.email);
+
+    res.json({
+      success: true,
+      message: 'Password bdel mzyan. T9der tdkhol daba.'
+    });
+
+  } catch (error) {
+    console.error('❌ Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Mochkil f server',
       error: error.message
     });
   }
@@ -704,6 +892,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📡 API: http://localhost:${PORT}/api/orders`);
   console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/login`);
   console.log(`🔵 Google: http://localhost:${PORT}/api/auth/google`);
+  console.log(`🔑 Forgot: http://localhost:${PORT}/api/auth/forgot-password`);
   console.log(`🔐 Admin: http://localhost:${PORT}/api/admin/orders`);
   console.log(`📡 Promo: http://localhost:${PORT}/api/promo/check-code`);
 });
