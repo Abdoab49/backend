@@ -29,7 +29,7 @@ const ADMIN_TOKEN = 'lanada_admin_token_2026';
 //  🔵 GOOGLE OAUTH — CLIENT ID
 // ============================================
 // ⚠️ Bdel hadi b Client ID dyalek mn Google Cloud Console
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1234567890-abcdefghijklmnopqrst.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '881331675616-redhhrg7pnhb2edad6m1b9i91ir2h9do.apps.googleusercontent.com';
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // ============================================
