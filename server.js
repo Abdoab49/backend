@@ -4,7 +4,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
-const nodemailer = require('nodemailer');   // ✅ JDID
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,14 +28,16 @@ const ADMIN_TOKEN = 'lanada_admin_token_2026';
 // ============================================
 //  🔵 GOOGLE OAUTH — CLIENT ID
 // ============================================
-const GOOGLE_CLIENT_ID = 'HNA_LSAQ_CLIENT_ID_DYALEK.apps.googleusercontent.com';
+// ⚠️ Bdel hadi b Client ID dyalek mn Google Cloud Console
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1234567890-abcdefghijklmnopqrst.apps.googleusercontent.com';
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // ============================================
 //  📧 GMAIL — NODEMAILER
 // ============================================
-const GMAIL_USER = process.env.GMAIL_USER || 'email@gmail.com';              // ⚠️ Bdel hadi
-const GMAIL_PASS = process.env.GMAIL_PASS || 'xxxx xxxx xxxx xxxx';           // ⚠️ Bdel hadi
+// ⚠️ Bdel hadi b email dyalek + App Password
+const GMAIL_USER = process.env.GMAIL_USER || 'emaildyalek@gmail.com';
+const GMAIL_PASS = process.env.GMAIL_PASS || 'abcd efgh ijkl mnop';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -146,7 +148,7 @@ usedCodeSchema.index({ code: 1, userId: 1 }, { unique: true });
 const UsedCode = mongoose.model('UsedCode', usedCodeSchema);
 
 // ============================================
-//  🔑 PASSWORD RESET SCHEMA — ✅ JDID
+//  🔑 PASSWORD RESET SCHEMA
 // ============================================
 const passwordResetSchema = new mongoose.Schema({
   userId: { type: String, required: true },
@@ -412,7 +414,7 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 // ============================================
-//  🔑 FORGOT PASSWORD — ✅ JDID
+//  🔑 FORGOT PASSWORD
 // ============================================
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
@@ -428,19 +430,16 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      // ✅ Ma ngoulouch wach email kayn (security)
       return res.json({
         success: true,
         message: 'Ila email kayn, ghadi tsift lik link'
       });
     }
 
-    // ✅ Msa7 tokens 9damin
     await PasswordReset.deleteMany({ userId: user._id.toString() });
 
-    // ✅ Créer token jdid
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
     await PasswordReset.create({
       userId: user._id.toString(),
@@ -449,10 +448,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       expiresAt
     });
 
-    // ✅ Link dyal reset
     const resetLink = `https://lanada.shop/reset-password/${token}`;
 
-    // ✅ Email HTML
     const mailOptions = {
       from: `"LANADA Shop" <${GMAIL_USER}>`,
       to: user.email,
