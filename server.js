@@ -22,7 +22,7 @@ mongoose.connect(MONGODB_URI)
 // ============================================
 //  🔐 ADMIN PASSWORD
 // ============================================
-const ADMIN_PASSWORD = 'lanada2026admin';
+const ADMIN_PASSWORD = 'lanada.shop.admin.12.33.44.13.!@#$';
 const ADMIN_TOKEN = 'lanada_admin_token_2026';
 
 // ============================================
