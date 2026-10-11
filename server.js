@@ -28,14 +28,12 @@ const ADMIN_TOKEN = 'lanada_admin_token_2026';
 // ============================================
 //  🔵 GOOGLE OAUTH — CLIENT ID
 // ============================================
-// ⚠️ Bdel hadi b Client ID dyalek mn Google Cloud Console
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '881331675616-redhhrg7pnhb2edad6m1b9i91ir2h9do.apps.googleusercontent.com';
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // ============================================
 //  📧 GMAIL — NODEMAILER
 // ============================================
-// ⚠️ Bdel hadi b email dyalek + App Password
 const GMAIL_USER = process.env.GMAIL_USER || 'emaildyalek@gmail.com';
 const GMAIL_PASS = process.env.GMAIL_PASS || 'abcd efgh ijkl mnop';
 
@@ -95,7 +93,7 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 // ============================================
-//  👤 USER SCHEMA — b Google
+//  👤 USER SCHEMA — b Email + Phone
 // ============================================
 const userSchema = new mongoose.Schema({
   email: {
@@ -165,14 +163,16 @@ const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
 //  🔐 API ROUTES — AUTH
 // ============================================
 
+// ✅ SIGNUP — Email IKHTIYARI
 app.post('/api/auth/signup', async (req, res) => {
   try {
     const { email, password, fullName, phone } = req.body;
 
-    if (!email || !password || !fullName) {
+    // ✅ Validation — Email IKHTIYARI
+    if (!password || !fullName) {
       return res.status(400).json({
         success: false,
-        message: 'Email, password, w full name — koulhom khassin'
+        message: 'Password w full name — koulhom khassin'
       });
     }
 
@@ -183,16 +183,24 @@ app.post('/api/auth/signup', async (req, res) => {
       });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: 'Hada l\'email deja msta3mel'
-      });
+    // ✅ Ila email kayn — check duplicate
+    if (email && email.trim()) {
+      const existing = await User.findOne({ email: email.toLowerCase().trim() });
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message: 'Hada l\'email deja msta3mel'
+        });
+      }
     }
 
+    // ✅ Générer email unique ila ma3ndekch
+    const finalEmail = email && email.trim()
+      ? email.toLowerCase().trim()
+      : `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}@lanada.local`;
+
     const user = new User({
-      email: email.toLowerCase(),
+      email: finalEmail,
       password,
       fullName,
       phone: phone || '',
@@ -206,7 +214,8 @@ app.post('/api/auth/signup', async (req, res) => {
     console.log('👤 New user created:', {
       id: user._id,
       email: user.email,
-      fullName: user.fullName
+      fullName: user.fullName,
+      phone: user.phone
     });
 
     res.status(201).json({
@@ -231,6 +240,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
+// ✅ LOGIN — b Email
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -242,7 +252,7 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
 
     if (!user) {
       return res.status(401).json({
@@ -427,12 +437,20 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
 
     if (!user) {
       return res.json({
         success: true,
         message: 'Ila email kayn, ghadi tsift lik link'
+      });
+    }
+
+    // ✅ Check ila email fake
+    if (user.email.includes('@lanada.local')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hada compte ma3ndouch email — ma y9derch yreset password'
       });
     }
 
