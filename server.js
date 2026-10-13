@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const nodemailer = require('nodemailer');
+const fetch = require('node-fetch');   // ✅ Zid hadi — f l'awwel
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -331,7 +332,7 @@ app.get('/api/auth/me/:userId', async (req, res) => {
 });
 
 // ============================================
-//  🔵 GOOGLE LOGIN
+//  🔵 GOOGLE LOGIN — b Fallback (id_token + access_token)
 // ============================================
 app.post('/api/auth/google', async (req, res) => {
   try {
@@ -344,18 +345,48 @@ app.post('/api/auth/google', async (req, res) => {
       });
     }
 
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: GOOGLE_CLIENT_ID
-    });
+    let userInfo;
 
-    const payload = ticket.getPayload();
+    // ✅ Try 1: Verify ID token (khddam b id_token)
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: GOOGLE_CLIENT_ID
+      });
+
+      userInfo = ticket.getPayload();
+      userInfo.id = userInfo.sub;
+      console.log('✅ verifyIdToken khddam');
+
+    } catch (err) {
+      // ✅ Try 2: userinfo endpoint (khddam b access_token)
+      console.log('⚠️ verifyIdToken failed — try userinfo endpoint');
+
+      const userInfoResponse = await fetch(
+        'https://www.googleapis.com/oauth2/v2/userinfo',
+        {
+          headers: { Authorization: `Bearer ${credential}` }
+        }
+      );
+
+      userInfo = await userInfoResponse.json();
+
+      if (!userInfo || !userInfo.email) {
+        return res.status(401).json({
+          success: false,
+          message: 'Google token invalide'
+        });
+      }
+
+      console.log('✅ userinfo endpoint khddam');
+    }
+
     const {
       email,
       name: fullName,
       picture,
-      sub: googleId
-    } = payload;
+      id: googleId
+    } = userInfo;
 
     if (!email) {
       return res.status(400).json({
