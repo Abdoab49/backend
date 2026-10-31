@@ -699,6 +699,12 @@ app.post('/api/promo/check-code', async (req, res) => {
     promo.usedCount += 1;
     await promo.save();
 
+    // ✅ HNA: ila wssel l'limite, kaytshaf automatique
+    if (promo.usedCount >= promo.maxUses) {
+      console.log(`🗑️ Code ${upperCode} reached max uses — auto-deleting.`);
+      await PromoCode.findByIdAndDelete(promo._id);
+    }
+
     res.json({
       valid: true,
       discountPercent: promo.discountPercent,
