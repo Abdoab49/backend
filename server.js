@@ -660,6 +660,34 @@ app.delete('/api/admin/orders/:id', async (req, res) => {
 //  🎯 API ROUTES — PROMO CODES
 // ============================================
 
+// ✅ Function bash tgeneri code 3achwa2i
+function generatePromoCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// ✅ Function bash t3awed tzid code jdid automatique
+async function autoCreateNewPromo() {
+  try {
+    const newCode = generatePromoCode();
+    const promo = new PromoCode({
+      code: newCode,
+      discountPercent: 20,
+      maxUses: 1,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      isActive: true
+    });
+    await promo.save();
+    console.log(`✨ Auto-created new promo code: ${newCode}`);
+  } catch (error) {
+    console.error('❌ Error auto-creating promo:', error.message);
+  }
+}
+
 app.post('/api/promo/check-code', async (req, res) => {
   const { code, userId } = req.body;
 
@@ -699,10 +727,13 @@ app.post('/api/promo/check-code', async (req, res) => {
     promo.usedCount += 1;
     await promo.save();
 
-    // ✅ HNA: ila wssel l'limite, kaytshaf automatique
+    // ✅ HNA: ila wssel l'limite, kaytshaf w kaytzad code jdid
     if (promo.usedCount >= promo.maxUses) {
       console.log(`🗑️ Code ${upperCode} reached max uses — auto-deleting.`);
       await PromoCode.findByIdAndDelete(promo._id);
+      
+      // ✅ Zid code jdid automatique
+      await autoCreateNewPromo();
     }
 
     res.json({
