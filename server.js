@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const nodemailer = require('nodemailer');
-const fetch = require('node-fetch');   // ✅ Zid hadi — f l'awwel
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -94,16 +94,10 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 // ============================================
-//  👤 USER SCHEMA — b Email + Phone
+//  👤 USER SCHEMA
 // ============================================
 const userSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
   fullName: { type: String, required: true, trim: true },
   phone: { type: String, default: '' },
@@ -116,22 +110,33 @@ const userSchema = new mongoose.Schema({
 userSchema.pre('save', function (next) {
   if (!this.isModified('password')) return next();
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto
-    .pbkdf2Sync(this.password, salt, 1000, 64, 'sha512')
-    .toString('hex');
+  const hash = crypto.pbkdf2Sync(this.password, salt, 1000, 64, 'sha512').toString('hex');
   this.password = `${salt}:${hash}`;
   next();
 });
 
 userSchema.methods.comparePassword = function (candidatePassword) {
   const [salt, hash] = this.password.split(':');
-  const candidateHash = crypto
-    .pbkdf2Sync(candidatePassword, salt, 1000, 64, 'sha512')
-    .toString('hex');
+  const candidateHash = crypto.pbkdf2Sync(candidatePassword, salt, 1000, 64, 'sha512').toString('hex');
   return hash === candidateHash;
 };
 
 const User = mongoose.model('User', userSchema);
+
+// ============================================
+//  🎯 PROMO CODE SCHEMA (JDID)
+// ============================================
+const promoCodeSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true, uppercase: true },
+  discountPercent: { type: Number, required: true, min: 1, max: 100 },
+  isActive: { type: Boolean, default: true },
+  maxUses: { type: Number, default: 100 },
+  usedCount: { type: Number, default: 0 },
+  expiresAt: { type: Date, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const PromoCode = mongoose.model('PromoCode', promoCodeSchema);
 
 // ============================================
 //  🎯 USED CODE SCHEMA
@@ -164,38 +169,25 @@ const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
 //  🔐 API ROUTES — AUTH
 // ============================================
 
-// ✅ SIGNUP — Email IKHTIYARI
 app.post('/api/auth/signup', async (req, res) => {
   try {
     const { email, password, fullName, phone } = req.body;
 
-    // ✅ Validation — Email IKHTIYARI
     if (!password || !fullName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password w full name — koulhom khassin'
-      });
+      return res.status(400).json({ success: false, message: 'Password w full name — koulhom khassin' });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password khass ykoun 3la l9al 6 characters'
-      });
+      return res.status(400).json({ success: false, message: 'Password khass ykoun 3la l9al 6 characters' });
     }
 
-    // ✅ Ila email kayn — check duplicate
     if (email && email.trim()) {
       const existing = await User.findOne({ email: email.toLowerCase().trim() });
       if (existing) {
-        return res.status(400).json({
-          success: false,
-          message: 'Hada l\'email deja msta3mel'
-        });
+        return res.status(400).json({ success: false, message: 'Hada l\'email deja msta3mel' });
       }
     }
 
-    // ✅ Générer email unique ila ma3ndekch
     const finalEmail = email && email.trim()
       ? email.toLowerCase().trim()
       : `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}@lanada.local`;
@@ -212,13 +204,6 @@ app.post('/api/auth/signup', async (req, res) => {
 
     const userId = 'user_' + user._id.toString();
 
-    console.log('👤 New user created:', {
-      id: user._id,
-      email: user.email,
-      fullName: user.fullName,
-      phone: user.phone
-    });
-
     res.status(201).json({
       success: true,
       message: 'Compte créé avec succès',
@@ -233,50 +218,31 @@ app.post('/api/auth/signup', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Signup error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Mochkil f server',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Mochkil f server', error: error.message });
   }
 });
 
-// ✅ LOGIN — b Email
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email w password — koulhom khassin'
-      });
+      return res.status(400).json({ success: false, message: 'Email w password — koulhom khassin' });
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Email wla password ghalat'
-      });
+      return res.status(401).json({ success: false, message: 'Email wla password ghalat' });
     }
 
     const isMatch = user.comparePassword(password);
 
     if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Email wla password ghalat'
-      });
+      return res.status(401).json({ success: false, message: 'Email wla password ghalat' });
     }
 
     const userId = 'user_' + user._id.toString();
-
-    console.log('🔐 User logged in:', {
-      id: user._id,
-      email: user.email
-    });
 
     res.json({
       success: true,
@@ -292,11 +258,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Mochkil f server',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Mochkil f server', error: error.message });
   }
 });
 
@@ -307,10 +269,7 @@ app.get('/api/auth/me/:userId', async (req, res) => {
     const user = await User.findById(realId).select('-password');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     res.json({
@@ -324,30 +283,23 @@ app.get('/api/auth/me/:userId', async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
 // ============================================
-//  🔵 GOOGLE LOGIN — b Fallback (id_token + access_token)
+//  🔵 GOOGLE LOGIN
 // ============================================
 app.post('/api/auth/google', async (req, res) => {
   try {
     const { credential } = req.body;
 
     if (!credential) {
-      return res.status(400).json({
-        success: false,
-        message: 'Credential is required'
-      });
+      return res.status(400).json({ success: false, message: 'Credential is required' });
     }
 
     let userInfo;
 
-    // ✅ Try 1: Verify ID token (khddam b id_token)
     try {
       const ticket = await googleClient.verifyIdToken({
         idToken: credential,
@@ -356,43 +308,23 @@ app.post('/api/auth/google', async (req, res) => {
 
       userInfo = ticket.getPayload();
       userInfo.id = userInfo.sub;
-      console.log('✅ verifyIdToken khddam');
 
     } catch (err) {
-      // ✅ Try 2: userinfo endpoint (khddam b access_token)
-      console.log('⚠️ verifyIdToken failed — try userinfo endpoint');
-
-      const userInfoResponse = await fetch(
-        'https://www.googleapis.com/oauth2/v2/userinfo',
-        {
-          headers: { Authorization: `Bearer ${credential}` }
-        }
-      );
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${credential}` }
+      });
 
       userInfo = await userInfoResponse.json();
 
       if (!userInfo || !userInfo.email) {
-        return res.status(401).json({
-          success: false,
-          message: 'Google token invalide'
-        });
+        return res.status(401).json({ success: false, message: 'Google token invalide' });
       }
-
-      console.log('✅ userinfo endpoint khddam');
     }
 
-    const {
-      email,
-      name: fullName,
-      picture,
-      id: googleId
-    } = userInfo;
+    const { email, name: fullName, picture, id: googleId } = userInfo;
 
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email not found in Google account'
-      });
+      return res.status(400).json({ success: false, message: 'Email not found in Google account' });
     }
 
     let user = await User.findOne({ email: email.toLowerCase() });
@@ -409,12 +341,6 @@ app.post('/api/auth/google', async (req, res) => {
       });
 
       await user.save();
-
-      console.log('🔵 New user via Google:', {
-        id: user._id,
-        email: user.email,
-        fullName: user.fullName
-      });
     } else {
       if (!user.googleId) {
         user.googleId = googleId;
@@ -422,11 +348,6 @@ app.post('/api/auth/google', async (req, res) => {
         user.provider = 'google';
         await user.save();
       }
-
-      console.log('🔵 Existing user logged in via Google:', {
-        id: user._id,
-        email: user.email
-      });
     }
 
     const userId = 'user_' + user._id.toString();
@@ -446,11 +367,7 @@ app.post('/api/auth/google', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Google auth error:', error);
-    res.status(401).json({
-      success: false,
-      message: 'Google token invalide',
-      error: error.message
-    });
+    res.status(401).json({ success: false, message: 'Google token invalide', error: error.message });
   }
 });
 
@@ -462,27 +379,17 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required'
-      });
+      return res.status(400).json({ success: false, message: 'Email is required' });
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
 
     if (!user) {
-      return res.json({
-        success: true,
-        message: 'Ila email kayn, ghadi tsift lik link'
-      });
+      return res.json({ success: true, message: 'Ila email kayn, ghadi tsift lik link' });
     }
 
-    // ✅ Check ila email fake
     if (user.email.includes('@lanada.local')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Hada compte ma3ndouch email — ma y9derch yreset password'
-      });
+      return res.status(400).json({ success: false, message: 'Hada compte ma3ndouch email — ma y9derch yreset password' });
     }
 
     await PasswordReset.deleteMany({ userId: user._id.toString() });
@@ -530,20 +437,11 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     await transporter.sendMail(mailOptions);
 
-    console.log('📧 Reset email sent to:', user.email);
-
-    res.json({
-      success: true,
-      message: 'Ila email kayn, ghadi tsift lik link'
-    });
+    res.json({ success: true, message: 'Ila email kayn, ghadi tsift lik link' });
 
   } catch (error) {
     console.error('❌ Forgot password error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Mochkil f server',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Mochkil f server', error: error.message });
   }
 });
 
@@ -552,49 +450,31 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const { token, newPassword } = req.body;
 
     if (!token || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Token w password — koulhom khassin'
-      });
+      return res.status(400).json({ success: false, message: 'Token w password — koulhom khassin' });
     }
 
     if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password khass ykoun 3la l9al 6 characters'
-      });
+      return res.status(400).json({ success: false, message: 'Password khass ykoun 3la l9al 6 characters' });
     }
 
     const resetRecord = await PasswordReset.findOne({ token });
 
     if (!resetRecord) {
-      return res.status(400).json({
-        success: false,
-        message: 'Token invalide wla expiré'
-      });
+      return res.status(400).json({ success: false, message: 'Token invalide wla expiré' });
     }
 
     if (resetRecord.used) {
-      return res.status(400).json({
-        success: false,
-        message: 'Hada token deja msta3mel'
-      });
+      return res.status(400).json({ success: false, message: 'Hada token deja msta3mel' });
     }
 
     if (new Date() > resetRecord.expiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: 'Token expiré. Talab reset jdid.'
-      });
+      return res.status(400).json({ success: false, message: 'Token expiré. Talab reset jdid.' });
     }
 
     const user = await User.findById(resetRecord.userId);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     user.password = newPassword;
@@ -603,20 +483,11 @@ app.post('/api/auth/reset-password', async (req, res) => {
     resetRecord.used = true;
     await resetRecord.save();
 
-    console.log('✅ Password reset for:', user.email);
-
-    res.json({
-      success: true,
-      message: 'Password bdel mzyan. T9der tdkhol daba.'
-    });
+    res.json({ success: true, message: 'Password bdel mzyan. T9der tdkhol daba.' });
 
   } catch (error) {
     console.error('❌ Reset password error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Mochkil f server',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Mochkil f server', error: error.message });
   }
 });
 
@@ -629,21 +500,14 @@ app.get('/api/orders', async (req, res) => {
     const { userId } = req.query;
 
     if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'userId is required'
-      });
+      return res.status(400).json({ success: false, message: 'userId is required' });
     }
 
     const orders = await Order.find({ userId }).sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch orders',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch orders', error: error.message });
   }
 });
 
@@ -660,17 +524,11 @@ app.post('/api/orders', async (req, res) => {
     } = req.body;
 
     if (!items || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Order must have at least one item'
-      });
+      return res.status(400).json({ success: false, message: 'Order must have at least one item' });
     }
 
     if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.phone || !shippingAddress.city || !shippingAddress.street) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please fill in all shipping information'
-      });
+      return res.status(400).json({ success: false, message: 'Please fill in all shipping information' });
     }
 
     const order = new Order({
@@ -696,15 +554,6 @@ app.post('/api/orders', async (req, res) => {
 
     await order.save();
 
-    console.log('📦 New Order saved to MongoDB:', {
-      id: order._id,
-      userId: order.userId,
-      customer: order.shippingAddress.fullName,
-      region: order.shippingAddress.region,
-      total: order.totalAmount,
-      items: order.items.length
-    });
-
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
@@ -714,11 +563,7 @@ app.post('/api/orders', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error creating order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create order',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to create order', error: error.message });
   }
 });
 
@@ -731,29 +576,16 @@ app.post('/api/admin/login', async (req, res) => {
     const { password } = req.body;
 
     if (!password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password is required'
-      });
+      return res.status(400).json({ success: false, message: 'Password is required' });
     }
 
     if (password !== ADMIN_PASSWORD) {
-      return res.status(401).json({
-        success: false,
-        message: 'Password ghalat'
-      });
+      return res.status(401).json({ success: false, message: 'Password ghalat' });
     }
 
-    res.json({
-      success: true,
-      message: 'Login successful',
-      token: ADMIN_TOKEN
-    });
+    res.json({ success: true, message: 'Login successful', token: ADMIN_TOKEN });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -762,21 +594,14 @@ app.get('/api/admin/orders', async (req, res) => {
     const { token } = req.query;
 
     if (token !== ADMIN_TOKEN) {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized'
-      });
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
     const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     console.error('❌ Error fetching all orders:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch orders',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch orders', error: error.message });
   }
 });
 
@@ -786,52 +611,26 @@ app.put('/api/admin/orders/:id/status', async (req, res) => {
     const { status } = req.body;
 
     if (token !== ADMIN_TOKEN) {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized'
-      });
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
     const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
+    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    console.log('✅ Order status updated:', {
-      id: order._id,
-      status: order.status
-    });
-
-    res.json({
-      success: true,
-      message: 'Order status updated',
-      order
-    });
+    res.json({ success: true, message: 'Order status updated', order });
 
   } catch (error) {
     console.error('❌ Error updating order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update order',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to update order', error: error.message });
   }
 });
 
@@ -840,33 +639,20 @@ app.delete('/api/admin/orders/:id', async (req, res) => {
     const { token } = req.query;
 
     if (token !== ADMIN_TOKEN) {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized'
-      });
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
     const order = await Order.findByIdAndDelete(req.params.id);
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    res.json({
-      success: true,
-      message: 'Order deleted successfully'
-    });
+    res.json({ success: true, message: 'Order deleted successfully' });
 
   } catch (error) {
     console.error('❌ Error deleting order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete order',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to delete order', error: error.message });
   }
 });
 
@@ -878,46 +664,55 @@ app.post('/api/promo/check-code', async (req, res) => {
   const { code, userId } = req.body;
 
   if (!code || !userId) {
-    return res.status(400).json({
-      valid: false,
-      error: 'Code wla userId manquant'
-    });
+    return res.status(400).json({ valid: false, error: 'Code wla userId manquant' });
   }
 
   try {
-    const existing = await UsedCode.findOne({
-      code: code.toUpperCase(),
-      userId
-    });
+    const upperCode = code.toUpperCase();
 
-    if (existing) {
-      return res.json({
-        valid: false,
-        message: 'Hada l\'code deja msta3mel'
-      });
+    const promo = await PromoCode.findOne({ code: upperCode });
+
+    if (!promo) {
+      return res.json({ valid: false, message: 'Hada l\'code ma kaynch' });
     }
 
-    await UsedCode.create({
-      code: code.toUpperCase(),
-      userId
-    });
+    if (!promo.isActive) {
+      return res.json({ valid: false, message: 'Hada l\'code ma b9ach khddam' });
+    }
 
-    res.json({ valid: true });
+    if (new Date() > promo.expiresAt) {
+      return res.json({ valid: false, message: 'Hada l\'code expira' });
+    }
+
+    if (promo.usedCount >= promo.maxUses) {
+      return res.json({ valid: false, message: 'Hada l\'code wssel l\'limite dyal les utilisations' });
+    }
+
+    const existing = await UsedCode.findOne({ code: upperCode, userId });
+
+    if (existing) {
+      return res.json({ valid: false, message: 'Hada l\'code deja msta3mel' });
+    }
+
+    await UsedCode.create({ code: upperCode, userId });
+
+    promo.usedCount += 1;
+    await promo.save();
+
+    res.json({
+      valid: true,
+      discountPercent: promo.discountPercent,
+      message: `✅ Code tsayeb: -${promo.discountPercent}%`
+    });
 
   } catch (error) {
     console.error('❌ Promo error:', error);
 
     if (error.code === 11000) {
-      return res.json({
-        valid: false,
-        message: 'Hada l\'code deja msta3mel'
-      });
+      return res.json({ valid: false, message: 'Hada l\'code deja msta3mel' });
     }
 
-    res.status(500).json({
-      valid: false,
-      error: 'Mochkil f server'
-    });
+    res.status(500).json({ valid: false, error: 'Mochkil f server' });
   }
 });
 
@@ -931,14 +726,86 @@ app.get('/api/promo/used/:userId', async (req, res) => {
 });
 
 // ============================================
+//  🎯 ADMIN — PROMO CODES
+// ============================================
+
+app.post('/api/admin/promo/create', async (req, res) => {
+  try {
+    const { token, code, discountPercent, maxUses, expiresAt } = req.body;
+
+    if (token !== ADMIN_TOKEN) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!code || !discountPercent || !expiresAt) {
+      return res.status(400).json({ success: false, message: 'code, discountPercent, expiresAt — koulhom khassin' });
+    }
+
+    const existing = await PromoCode.findOne({ code: code.toUpperCase() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Hada l\'code deja kayn' });
+    }
+
+    const promo = new PromoCode({
+      code: code.toUpperCase(),
+      discountPercent: Number(discountPercent),
+      maxUses: Number(maxUses) || 100,
+      expiresAt: new Date(expiresAt),
+      isActive: true
+    });
+
+    await promo.save();
+
+    res.status(201).json({ success: true, message: 'Code tsayeb mzyan', promo: promo });
+
+  } catch (error) {
+    console.error('❌ Create promo error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/admin/promo/list', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (token !== ADMIN_TOKEN) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const promos = await PromoCode.find().sort({ createdAt: -1 });
+    res.json(promos);
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put('/api/admin/promo/:id/toggle', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (token !== ADMIN_TOKEN) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const promo = await PromoCode.findById(req.params.id);
+    if (!promo) {
+      return res.status(404).json({ success: false, message: 'Promo not found' });
+    }
+
+    promo.isActive = !promo.isActive;
+    await promo.save();
+
+    res.json({ success: true, message: promo.isActive ? 'Code activé' : 'Code désactivé', promo });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
 //  🚀 START SERVER
 // ============================================
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 API: http://localhost:${PORT}/api/orders`);
-  console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/login`);
-  console.log(`🔵 Google: http://localhost:${PORT}/api/auth/google`);
-  console.log(`🔑 Forgot: http://localhost:${PORT}/api/auth/forgot-password`);
-  console.log(`🔐 Admin: http://localhost:${PORT}/api/admin/orders`);
-  console.log(`📡 Promo: http://localhost:${PORT}/api/promo/check-code`);
 });
